@@ -38,26 +38,44 @@ b15<-read_tsv("demultiplex/top15", col_names = "Combo") %>% separate(Combo, into
 
 c15<-d15 %>% left_join(b15) %>% mutate(BarcodeActual=paste0(Sbfi7,"-",i5act))
 
-write_csv(c15, "sequenced-fish/SOMM15.csv")
+write_csv(c15, "sequenced-fish/SOMM515.csv")
 
 somm515<-c15 %>% select(`Sample name`, BarcodeActual)
 write_tsv(somm515, "demultiplex/somm515.tsv", col_names = FALSE)
 
 ```
 
+Trying.    
+```{sh, eval=FALSE}
+$HOME/bin/fastq-multx -B demultiplex/somm515.tsv \
+/share/schreierlab/smelt-wgs/Project_AFSR_SOMM515/SOMM515_S1_L001_I1_001.fastq.gz \
+/share/schreierlab/smelt-wgs/Project_AFSR_SOMM515/SOMM515_S1_L001_I2_001.fastq.gz \
+/share/schreierlab/smelt-wgs/Project_AFSR_SOMM515/SOMM515_S1_L001_R1_001.fastq.gz \
+/share/schreierlab/smelt-wgs/Project_AFSR_SOMM515/SOMM515_S1_L001_R2_001.fastq.gz \
+-o n/a -o n/a \
+-o /share/schreierlab/smelt-wgs/demulti-SOMM515/%_R1.fastq \
+-o /share/schreierlab/smelt-wgs/demulti-SOMM515/%_R2.fastq
+```
+
+Works!!!!
 
 
 ```{r}
+d17<-d %>% filter(`library number`=="SOMM517") %>% separate(`i7 primer name`, into =c("Type","i7Well"), 
+                                                            remove=FALSE)
+barcodes<-read_tsv("demultiplex/sbf1-barcodes.txt")
+d17<-left_join(d17, barcodes)
 
-somm516<- d %>% filter(`library number`=="SOMM516") %>% mutate(seq=paste0(i7,"-",i5)) %>% 
-  select(`Sample name`, seq) %>% rename(id=`Sample name`) %>% mutate(style="TruSeq")
+b17<-read_tsv("demultiplex/top17", col_names = "Combo") %>% separate(Combo, into=c("Hits","Sbfi7","i5act"), 
+                                                                     remove=FALSE)
 
-write_tsv(somm516, "demultiplex/somm516.tsv", col_names = FALSE)
+c17<-d17 %>% left_join(b17) %>% mutate(BarcodeActual=paste0(Sbfi7,"-",i5act))
 
-somm517<- d %>% filter(`library number`=="SOMM517") %>% mutate(seq=paste0(i7,"-",i5)) %>% 
-  select(`Sample name`, seq) %>% rename(id=`Sample name`) %>% mutate(style="TruSeq")
+write_csv(c17, "sequenced-fish/SOMM517.csv")
 
+somm517<-c17 %>% select(`Sample name`, BarcodeActual)
 write_tsv(somm517, "demultiplex/somm517.tsv", col_names = FALSE)
+
 ```
 
 
