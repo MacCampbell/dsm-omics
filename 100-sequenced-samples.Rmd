@@ -54,8 +54,16 @@ fastq-multx -B barcodes.tsv -m 0 \
     -o n/a -o n/a -o %_R1.fastq -o %_R2.fastq
 ```
 
-```{sh, eval=FALSE}
-srun -p production -t 1-01:00:0 $HOME/bin/fastq-multx -B data/barcodes.txt \
+Testing:
+barcodes.txt looks like:
+Sample-1 AGGCAC-TGCAGGTA TruSeq
+Sample-2 GCGCCC-CATGGCTA TruSeq
+Sample-3 CGTCTT-GGCATACT TruSeq
+Sample-4 TCAGTT-ACAGCTCA TruSeq
+Sample-5 GACCCT-GCGTCATT TruSeq
+      
+```{sh,eval=FAlSE}
+$HOME/bin/fastq-multx -B data/barcodes.txt \
 /share/schreierlab/smelt-wgs/Project_AFSR_SOMM515/SOMM515_S1_L001_I1_001.fastq.gz \
 /share/schreierlab/smelt-wgs/Project_AFSR_SOMM515/SOMM515_S1_L001_I2_001.fastq.gz \
 /share/schreierlab/smelt-wgs/Project_AFSR_SOMM515/SOMM515_S1_L001_R1_001.fastq.gz \
@@ -65,3 +73,44 @@ srun -p production -t 1-01:00:0 $HOME/bin/fastq-multx -B data/barcodes.txt \
 -o /share/schreierlab/smelt-wgs/demulti-SOMM515/%_R2.fastq
 ```
 
+this works....
+
+But the barcodes provided by Sean don't.     
+12/17/2021 needs resolution.     
+
+```{sh, eval=FALSE}
+module load fastq-multx 
+srun -p production -t 1-01:00:0 fastq-multx -B demultiplex/somm515.tsv \
+/share/schreierlab/smelt-wgs/Project_AFSR_SOMM515/SOMM515_S1_L001_I1_001.fastq.gz \
+/share/schreierlab/smelt-wgs/Project_AFSR_SOMM515/SOMM515_S1_L001_I2_001.fastq.gz \
+/share/schreierlab/smelt-wgs/Project_AFSR_SOMM515/SOMM515_S1_L001_R1_001.fastq.gz \
+/share/schreierlab/smelt-wgs/Project_AFSR_SOMM515/SOMM515_S1_L001_R2_001.fastq.gz \
+-o n/a -o n/a \
+-o /share/schreierlab/smelt-wgs/demulti-SOMM515/%_R1.fastq \
+-o /share/schreierlab/smelt-wgs/demulti-SOMM515/%_R2.fastq
+```
+
+
+```{sh,eval=FALSE}
+srun -p production -t 1-01:00:0 fastq-multx -B demultiplex/somm516.tsv \
+/share/schreierlab/smelt-wgs/Project_AFSR_SOMM516/SOMM516_S1_L001_I1_001.fastq.gz \
+/share/schreierlab/smelt-wgs/Project_AFSR_SOMM516/SOMM516_S1_L001_I2_001.fastq.gz \
+/share/schreierlab/smelt-wgs/Project_AFSR_SOMM516/SOMM516_S1_L001_R1_001.fastq.gz \
+/share/schreierlab/smelt-wgs/Project_AFSR_SOMM516/SOMM516_S1_L001_R2_001.fastq.gz \
+-o n/a -o n/a \
+-o /share/schreierlab/smelt-wgs/demulti-SOMM516/%_R1.fastq \
+-o /share/schreierlab/smelt-wgs/demulti-SOMM516/%_R2.fastq
+```
+
+
+
+```{sh,eval=FALSE}
+srun -p production -t 1-01:00:0 fastq-multx -B demultiplex/somm517.tsv \
+/share/schreierlab/smelt-wgs/Project_AFSR_SOMM517/SOMM517_S1_L001_I1_001.fastq.gz \
+/share/schreierlab/smelt-wgs/Project_AFSR_SOMM517/SOMM517_S1_L001_I2_001.fastq.gz \
+/share/schreierlab/smelt-wgs/Project_AFSR_SOMM517/SOMM517_S1_L001_R1_001.fastq.gz \
+/share/schreierlab/smelt-wgs/Project_AFSR_SOMM517/SOMM517_S1_L001_R2_001.fastq.gz \
+-o n/a -o n/a \
+-o /share/schreierlab/smelt-wgs/demulti-SOMM517/%_R1.fastq \
+-o /share/schreierlab/smelt-wgs/demulti-SOMM517/%_R2.fastq
+```
