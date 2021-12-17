@@ -1,0 +1,45 @@
+---
+title: "100-sequenced-samples"
+author: "Mac Campbell"
+date: "November 6, 2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+```
+
+## Organizing
+Location, data type, meta (life history profile, sex, etc.) of fish
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+d<-read_csv("sequenced-fish/samples-barcodes-12162021.csv")
+```
+
+want:
+id      seq     style
+D708_508        TAATGCGC-GTACTGAC       TruSeq
+D709_501        CGGCTATG-TATAGCCT       TruSeq
+D709_502        CGGCTATG-ATAGAGGC       TruSeq
+
+```{r}
+somm515<- d %>% filter(`library number`=="SOMM515") %>% mutate(seq=paste0(i7,"-",i5)) %>% 
+  select(`Sample name`, seq) %>% rename(id=`Sample name`) %>% mutate(style="TruSeq")
+
+write_tsv(somm515, "demultiplex/somm515.tsv")
+```
+
+
+Run like:   
+```{sh, eval=FALSE}
+fastq-multx -B barcodes.tsv -m 0 \
+    Undetermined_S0_L001_I1_001.fastq.gz \
+    Undetermined_S0_L001_I2_001.fastq.gz \
+    Undetermined_S0_L001_R1_001.fastq.gz \
+    Undetermined_S0_L001_R2_001.fastq.gz \
+    -o n/a -o n/a -o %_R1.fastq -o %_R2.fastq
+```
