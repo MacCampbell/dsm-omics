@@ -1,0 +1,54 @@
+---
+title: "101-demulti"
+author: "Mac Campbell"
+date: "1/4/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+```
+
+```{r}
+library(tidyverse)
+```
+
+## Barcodes
+
+Barcodes appear to be reverse complemented.    
+want:
+id      seq     style      
+D708_508        TAATGCGC-GTACTGAC       TruSeq   
+D709_501        CGGCTATG-TATAGCCT       TruSeq   
+D709_502        CGGCTATG-ATAGAGGC       TruSeq   
+
+
+```{r}
+df<-read_csv("sequenced-fish/samples-barcodes-01042022.csv")
+```
+
+```{r}
+d15<-df %>% filter(`library number`=="SOMM515") %>% select(`Sample name`, Barcode)
+write_tsv(d15, "demultiplex/somm515.tsv", col_names = FALSE)
+
+d16<-df %>% filter(`library number`=="SOMM516") %>% select(`Sample name`, Barcode)
+write_tsv(d16, "demultiplex/somm516.tsv", col_names = FALSE)
+
+d17<-df %>% filter(`library number`=="SOMM517") %>% select(`Sample name`, Barcode)
+write_tsv(d17, "demultiplex/somm517.tsv", col_names = FALSE)
+
+```
+
+
+Trying in screen:    
+
+```{sh, eval=FALSE}
+$HOME/bin/fastq-multx -B demultiplex/somm515.tsv \
+/share/schreierlab/smelt-wgs/Project_AFSR_SOMM515/SOMM515_S1_L001_I1_001.fastq.gz \
+/share/schreierlab/smelt-wgs/Project_AFSR_SOMM515/SOMM515_S1_L001_I2_001.fastq.gz \
+/share/schreierlab/smelt-wgs/Project_AFSR_SOMM515/SOMM515_S1_L001_R1_001.fastq.gz \
+/share/schreierlab/smelt-wgs/Project_AFSR_SOMM515/SOMM515_S1_L001_R2_001.fastq.gz \
+-o n/a -o n/a \
+-o /share/schreierlab/smelt-wgs/demulti-SOMM515/%_R1.fastq \
+-o /share/schreierlab/smelt-wgs/demulti-SOMM515/%_R2.fastq
+```

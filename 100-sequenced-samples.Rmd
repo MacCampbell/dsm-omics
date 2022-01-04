@@ -45,6 +45,13 @@ write_tsv(somm515, "demultiplex/somm515.tsv", col_names = FALSE)
 
 ```
 
+```{r, eval=FALSE}
+names<-c15 %>% separate(`i5 primer Name`, into = c("Color","i5Well","i5F")) %>% select(i7Well, Sbfi7,i5Well, i5act, BarcodeActual,Hits) %>% arrange(i7Well) 
+
+write_csv(names, file="demultiplex/barcodes.csv")
+
+```
+
 Trying.    
 ```{sh, eval=FALSE}
 $HOME/bin/fastq-multx -B demultiplex/somm515.tsv \
@@ -78,6 +85,31 @@ write_tsv(somm517, "demultiplex/somm517.tsv", col_names = FALSE)
 
 ```
 
+```{r, eval=FALSE}
+names17<-c17 %>% separate(`i5 primer Name`, into = c("Color","i5Well","i5F")) %>% select(i7Well, Sbfi7,i5Well, i5act, BarcodeActual,Hits) %>% arrange(i7Well) 
+
+write_csv(names17, file="demultiplex/barcodes17.csv")
+
+```
+
+```{r}
+n15<-read_csv("demultiplex/barcodes.csv")
+n17<-read_csv("demultiplex/barcodes17.csv")
+
+total<-bind_rows(n15, n17)
+```
+
+
+```{sh,eval=FALSE}
+$HOME/bin/fastq-multx -B demultiplex/somm517.tsv \
+/share/schreierlab/smelt-wgs/Project_AFSR_SOMM517/SOMM517_S1_L003_I1_001.fastq.gz \
+/share/schreierlab/smelt-wgs/Project_AFSR_SOMM517/SOMM517_S1_L003_I2_001.fastq.gz \
+/share/schreierlab/smelt-wgs/Project_AFSR_SOMM517/SOMM517_S1_L003_R1_001.fastq.gz \
+/share/schreierlab/smelt-wgs/Project_AFSR_SOMM517/SOMM517_S1_L003_R2_001.fastq.gz \
+-o n/a -o n/a \
+-o /share/schreierlab/smelt-wgs/demulti-SOMM517/%_R1.fastq \
+-o /share/schreierlab/smelt-wgs/demulti-SOMM517/%_R2.fastq
+```
 
 Run like:   
 ```{sh, eval=FALSE}
