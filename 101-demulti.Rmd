@@ -43,12 +43,43 @@ write_tsv(d17, "demultiplex/somm517.tsv", col_names = FALSE)
 Trying in screen:    
 
 ```{sh, eval=FALSE}
-$HOME/bin/fastq-multx -B demultiplex/somm515.tsv \
+
+module load fastq-multx 
+
+srun -p production -t 1-01:00:0 
+
+$HOME/fastq-multx/fastq-multx -m 0 -B demultiplex/somm515.tsv \
 /share/schreierlab/smelt-wgs/Project_AFSR_SOMM515/SOMM515_S1_L001_I1_001.fastq.gz \
 /share/schreierlab/smelt-wgs/Project_AFSR_SOMM515/SOMM515_S1_L001_I2_001.fastq.gz \
 /share/schreierlab/smelt-wgs/Project_AFSR_SOMM515/SOMM515_S1_L001_R1_001.fastq.gz \
 /share/schreierlab/smelt-wgs/Project_AFSR_SOMM515/SOMM515_S1_L001_R2_001.fastq.gz \
 -o n/a -o n/a \
--o /share/schreierlab/smelt-wgs/demulti-SOMM515/%_R1.fastq \
--o /share/schreierlab/smelt-wgs/demulti-SOMM515/%_R2.fastq
+-o /share/schreierlab/smelt-wgs/demulti-SOMM515/%_R1.fastq.gz \
+-o /share/schreierlab/smelt-wgs/demulti-SOMM515/%_R2.fastq.gz
+
+srun -p production -t 0-12:00:0 
+$HOME/fastq-multx/fastq-multx -m 0 -B demultiplex/somm516.tsv \
+/share/schreierlab/smelt-wgs/Project_AFSR_SOMM516/SOMM516_S1_L002_I1_001.fastq.gz \
+/share/schreierlab/smelt-wgs/Project_AFSR_SOMM516/SOMM516_S1_L002_I2_001.fastq.gz \
+/share/schreierlab/smelt-wgs/Project_AFSR_SOMM516/SOMM516_S1_L002_R1_001.fastq.gz \
+/share/schreierlab/smelt-wgs/Project_AFSR_SOMM516/SOMM516_S1_L002_R2_001.fastq.gz \
+-o n/a -o n/a \
+-o /share/schreierlab/smelt-wgs/demulti-SOMM516/%_R1.fastq.gz \
+-o /share/schreierlab/smelt-wgs/demulti-SOMM516/%_R2.fastq.gz
+
+srun -p production -t 0-12:00:0 fastq-multx -m 0 -B demultiplex/somm517.tsv \
+/share/schreierlab/smelt-wgs/Project_AFSR_SOMM517/SOMM517_S1_L003_I1_001.fastq.gz \
+/share/schreierlab/smelt-wgs/Project_AFSR_SOMM517/SOMM517_S1_L003_I2_001.fastq.gz \
+/share/schreierlab/smelt-wgs/Project_AFSR_SOMM517/SOMM517_S1_L003_R1_001.fastq.gz \
+/share/schreierlab/smelt-wgs/Project_AFSR_SOMM517/SOMM517_S1_L003_R2_001.fastq.gz \
+-o n/a -o n/a \
+-o /share/schreierlab/smelt-wgs/demulti-SOMM517/%_R1.fastq.gz \
+-o /share/schreierlab/smelt-wgs/demulti-SOMM517/%_R2.fastq.gz
+
 ```
+
+
+SOMM517 ran to completion
+
+Ran all to completion!!
+

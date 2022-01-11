@@ -1,0 +1,18 @@
+---
+title: "200-basic-qc"
+author: "Mac Campbell"
+date: "1/11/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+```
+
+## Check out data.
+
+Investigating a few samples with fastqc: SOMM515 hdi_A_10, sub-sampling:
+
+```{sh, eval=FALSE}
+
+```
