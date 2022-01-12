@@ -11,8 +11,13 @@ knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
 
 ## Check out data.
 
-Investigating a few samples with fastqc: SOMM515 hdi_A_10, sub-sampling:
+Investigating a few samples with FastQC v0.11.9: SOMM515 hdi_A_10, sub-sampling:
 
 ```{sh, eval=FALSE}
-
+(base) maccamp@farm:~/dsm-omics$ gunzip -c data/SOMM515/hdi_A_10_R1.fastq.gz | head -n 400000 > outputs/200/test1.fastq
+(base) maccamp@farm:~/dsm-omics$ gunzip -c data/SOMM515/hdi_A_10_R2.fastq.gz | head -n 400000 > outputs/200/test2.fastq
 ```
+
+
+Looks great!!!! Overall length nearly all 150, some decline in q scores at the end of read, but mean ~32. Not seeing a lot of adapter content.
+
