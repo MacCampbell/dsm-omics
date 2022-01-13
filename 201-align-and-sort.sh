@@ -10,7 +10,8 @@
 #Requires a path to indexed reference genome (ref, $2)
 
 #Usage (from data/ dir I suppose.)
-#bash ../100-align-and-sort.sh tester.txt $HOME/genomes/chinook/GCF_002872995.1_Otsh_v1.0_genomic.fna.gz
+#bash .../../201-align-and-sort.sh sequences.txt $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa
+
 
 list=$1
 ref=$2
