@@ -28,5 +28,15 @@ Looks great!!!! Overall length nearly all 150, some decline in q scores at the e
 
 Running 201-align-and-sort.sh ...
 
+Then 202-compute-coverage.sh ...
 
+Ensieh says:
+
+Generally, for each tag ID there is a cross number and unique ID is a six-digit number in which the first two digits is a generation number, the three in the middle is a cross number, and the last number is for male/ female (1 or 2).
+111392
+
+
+## Aligning the two references with nucmer
+
+(base) maccamp@farm:~/dsm-omics$ srun -p bigmemm --time 2-01:00:00 nucmer ~/genomes/hypomesus-male/mHypTra1.fasta ~/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa > outputs/200/mummer
 
