@@ -38,5 +38,21 @@ Generally, for each tag ID there is a cross number and unique ID is a six-digit 
 
 ## Aligning the two references with nucmer
 
-(base) maccamp@farm:~/dsm-omics$ srun -p bigmemm --time 2-01:00:00 nucmer ~/genomes/hypomesus-male/mHypTra1.fasta ~/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa > outputs/200/mummer
+base) maccamp@farm:~/dsm-omics$ srun -p bigmemm --time 2-01:00:00 nucmer -p outputs/200/mummer ~/genomes/hypomesus-male/mHypTra1.fasta ~/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa > outputs/200/mummer.stdout 2> outputs/200/mummer.stderr
+
+To view a summary of all the alignments produced by NUCmer, we need to run the nucmer.delta file through the show-coords utility.
+
+srun -p high --time 0-01:00:00 show-coords -r -c -l outputs/200/mummer.delta > outputs/200/mummer.coords     
+srun -p high --time 0-01:00:00 show-tiling outputs/200/mummer.delta > outputs/200/mummer.tiling      
+
+Plotting:
+mummerplot -postscript -p outputs/200/mummerplot outputs/200/mummer.delta 
+mummerplot -postscript -p outputs/200/mummertiling outputs/200/mummer.tiling
+
+#LASTZ 
+
+srun -p bigmemm -t 1-12:00:00 --mem=16G lastz outputs/200/male27.fasa ~/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa --gapped --ambiguous=iupac --gfextend --identity=75.0..100.0 --format=general > outputs/200/male27.lastz 2> outputs/200/male27.stderr &      
+
+srun -p bigmemm -t 1-12:00:00 --mem=16G lastz outputs/200/male28.fasa ~/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa --gapped --ambiguous=iupac --gfextend --identity=75.0..100.0 --format=general> outputs/200/male28.lastz 2> outputs/200/male28.stderr &      
+
 
