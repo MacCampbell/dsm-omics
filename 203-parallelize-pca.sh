@@ -14,11 +14,11 @@ thresh=$((lines/2))
 
 while read chrom; do
   echo "#!/bin/bash -l
-  $HOME/angsd/angsd -nThreads 12 -minInd $thresh -GL 1 \
+  $HOME/angsd/angsd -nThreads 6 -minInd $thresh -GL 1 \
 -doGlf 2  -doMajorMinor 1 -doMaf 2 -SNP_pval 1e-6 -minMapQ 20 -minQ 20 \
 -r $chrom -out $chrom-pca \
 -bam $bamlist > $chrom.out 2> $chrom.err " > $chrom.sh
   
-sbatch -p high -t 48:00:00 --mem=32G --nodes=2 $chrom.sh
+sbatch -p bigmemm -t 12:00:00 --mem=32G --nodes=1 $chrom.sh
 
 done < $list
