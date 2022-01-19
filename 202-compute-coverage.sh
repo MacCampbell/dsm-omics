@@ -13,10 +13,12 @@
 # bedfile is meta/GCF_002872995.1.bed
 
 # USAGE
-# ../102-compute-coverage.sh bamfilelist $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.bed
+# ../../202-compute-coverage.sh list.txt $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.bed
 
 #For DSM
 #(base) maccamp@farm:~/dsm-omics$ ls data/SOMM515/ | grep flt | grep -v bai | perl -pe 's/.bam//g' > data/SOMM515/list.txt
+# ls data/SOMM516/ | grep flt | grep -v bai | perl -pe 's/.bam//g' > data/SOMM516/list.txt
+# ls data/SOMM517/ | grep flt | grep -v bai | perl -pe 's/.bam//g' > data/SOMM517/list.txt
 
 list=$1 
 bedf=$2

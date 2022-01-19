@@ -36,6 +36,9 @@ Generally, for each tag ID there is a cross number and unique ID is a six-digit 
 111392
 
 
+
+
+
 ## Aligning the two references with nucmer
 
 base) maccamp@farm:~/dsm-omics$ srun -p bigmemm --time 2-01:00:00 nucmer -p outputs/200/mummer ~/genomes/hypomesus-male/mHypTra1.fasta ~/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa > outputs/200/mummer.stdout 2> outputs/200/mummer.stderr

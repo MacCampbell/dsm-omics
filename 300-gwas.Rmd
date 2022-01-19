@@ -1,0 +1,75 @@
+---
+title: "300-gwas"
+author: "Mac Campbell"
+date: "1/18/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+```
+
+```{r}
+library(tidyverse)
+library(data.table)
+```
+
+## Getting a list of seqs
+`cat  genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa.fai | awk '$2 > 100000' | cut -f 1 > genomes/hypomesus-20210204/seqs100k.txt`
+
+
+
+## Get some idea of what we got
+
+```{r}
+df<-read_csv("sequenced-fish/samples-barcodes-01042022.csv") %>% filter(str_detect(`Sample name`, '^\\d+')) %>%
+  separate(col = `Sample name`, into=c("X1","X2","X3","X4","X5","X6","X7"), sep="", remove=FALSE ) %>%
+  mutate(Sex = ifelse(X7==2, "female","male")) %>%
+  mutate(Pheno=ifelse(Sex=="female", 1, 0))
+```
+
+first two digits is a generation number, the three in the middle is a cross number, and the last number is for male/ female (1 or 2).
+
+Bring in coverage:
+
+```{r}
+files<-list.files(path="outputs/300", pattern="*.cov", full.names=TRUE)
+list<-lapply(files, read_tsv, col_names=FALSE) 
+names<-lapply(files, basename)
+all<-mapply(c, list, names, SIMPLIFY = FALSE)
+comb<-as_tibble(rbindlist(all, fill=T)) %>% rename(Coverage=X1, CovFile=V1)
+
+comb$SeqFile<-gsub(".cov",".bam",comb$CovFile)
+comb$`Sample name`<-gsub("_R1.sort.flt.bam","",comb$SeqFile)
+comb<-select(comb, -CovFile)
+```
+
+Merge   
+```{r}
+df<-left_join(df,comb) %>% filter(Coverage !="NA")
+nrow(df)
+mean(df$Coverage)
+```
+
+```{r}
+ggplot(df) +
+  geom_histogram(aes(Coverage, fill=Sex)) +
+  theme_bw() +
+  theme(panel.grid=element_blank()) +
+  ylab("Count") +
+  theme(axis.title = element_text(face="bold")) +
+  scale_y_continuous(breaks=c(0,5,10,15,20,25))
+```
+
+
+Creating a tester bamlit
+
+```{r}
+tester<-df %>% filter(Coverage > 10) %>% filter(Coverage < 30) %>% mutate(String=paste0("data/",`library number`,"/",SeqFile))
+tester %>% group_by(Sex) %>% summarize(Count=n())
+```
+
+```{r}
+write_tsv(tester %>% select(String), col_names = FALSE, file = "bamlists/test92.bamlist")
+write_tsv(tester %>% select(Pheno), col_names=FALSE, file="bamlists/test92.pheno")
+```
