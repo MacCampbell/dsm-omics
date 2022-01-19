@@ -65,7 +65,7 @@ ggplot(df) +
 Creating a tester bamlit
 
 ```{r}
-tester<-df %>% filter(Coverage > 10) %>% filter(Coverage < 30) %>% mutate(String=paste0("data/",`library number`,"/",SeqFile))
+tester<-df %>% filter(Coverage > 10) %>% filter(Coverage < 30) %>% mutate(String=paste0("$HOME/dsm-omics/data/",`library number`,"/",SeqFile))
 tester %>% group_by(Sex) %>% summarize(Count=n())
 ```
 
