@@ -36,9 +36,62 @@ Generally, for each tag ID there is a cross number and unique ID is a six-digit 
 111392
 
 
+## PCAs
+
+Meta   
+```{r}
+df<-read_csv("sequenced-fish/samples-barcodes-01042022.csv")
+```
+
+Bring in coverage:
+
+```{r}
+files<-list.files(path="outputs/200", pattern="*.cov", full.names=TRUE)
+list<-lapply(files, read_tsv, col_names=FALSE) 
+names<-lapply(files, basename)
+all<-mapply(c, list, names, SIMPLIFY = FALSE)
+comb<-as_tibble(rbindlist(all, fill=T)) %>% rename(Coverage=X1, CovFile=V1)
+
+comb$SeqFile<-gsub(".cov",".bam",comb$CovFile)
+comb$`Sample name`<-gsub("_R1.sort.flt.bam","",comb$SeqFile)
+comb<-select(comb, -CovFile)
+```
 
 
+```{r}
+meta<-left_join(df, comb) %>% filter(Coverage !="NA")
+nrow(meta)
+mean(meta$Coverage)
+```
+```{r}
+meta %>% group_by(`library number`) %>%
+  summarize(AvgCoverage=mean(Coverage))
+```
 
+```{r}
+ggplot(meta) +
+  geom_histogram(aes(Coverage, fill=`library number`)) +
+  theme_bw() +
+  theme(panel.grid=element_blank()) +
+  ylab("Count") +
+  theme(axis.title = element_text(face="bold")) +
+  scale_y_continuous(breaks=c(0,5,10,15,20,25))
+```
+
+Lanes very similar.     
+```{r} 
+pcseqs<- meta %>% filter(Coverage > 5)  %>% filter(str_detect(`Sample name`, '^h|^H|^l|^L')) %>%     
+  mutate(String=paste0("/home/maccamp/dsm-omics/data/",`library number`,"/",SeqFile))
+
+pcseqs%>% group_by(`library number`) %>% summarize(Count=n())
+```
+     
+     
+```{r}
+write_tsv(pcseqs %>% select(String), col_names = FALSE, file = "bamlists/test125.bamlist")
+```
+
+```
 ## Aligning the two references with nucmer
 
 base) maccamp@farm:~/dsm-omics$ srun -p bigmemm --time 2-01:00:00 nucmer -p outputs/200/mummer ~/genomes/hypomesus-male/mHypTra1.fasta ~/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa > outputs/200/mummer.stdout 2> outputs/200/mummer.stderr
