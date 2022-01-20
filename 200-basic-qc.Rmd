@@ -91,7 +91,15 @@ pcseqs%>% group_by(`library number`) %>% summarize(Count=n())
 write_tsv(pcseqs %>% select(String), col_names = FALSE, file = "bamlists/test125.bamlist")
 ```
 
+in /outputs/203 runnign 203-parallelize-pca.sh    
+
+```{sh, eval=FALSE}
+gunzip -c lg01-pca.beagle.gz | head -n 1 > chroms.beagle
+gunzip -c *beagle.gz | grep -v "marker"  >> chroms.beagle
+gzip chroms.beagle
+srun -p bigmemm --mem=32G -t 03:00:00 python $HOME/pcangsd/pcangsd.py -beagle chroms.beagle.gz -o chroms -threads 10 > chroms.stdout 2>chroms.stderr &
 ```
+
 ## Aligning the two references with nucmer
 
 base) maccamp@farm:~/dsm-omics$ srun -p bigmemm --time 2-01:00:00 nucmer -p outputs/200/mummer ~/genomes/hypomesus-male/mHypTra1.fasta ~/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa > outputs/200/mummer.stdout 2> outputs/200/mummer.stderr

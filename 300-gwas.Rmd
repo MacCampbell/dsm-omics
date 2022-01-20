@@ -73,3 +73,5 @@ tester %>% group_by(Sex) %>% summarize(Count=n())
 write_tsv(tester %>% select(String), col_names = FALSE, file = "bamlists/test92.bamlist")
 write_tsv(tester %>% select(Pheno), col_names=FALSE, file="bamlists/test92.pheno")
 ```
+
+Running PCA in outputs/303
