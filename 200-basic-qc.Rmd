@@ -59,7 +59,7 @@ comb<-select(comb, -CovFile)
 
 
 ```{r}
-meta<-left_join(df, comb) %>% filter(Coverage !="NA")
+meta<-left_join(df, comb) %>% filter(Coverage !="NA") %>% mutate(DI=ifelse(str_detect(`Sample name`, '^h|^H'), "HighDI","LowDI")) 
 nrow(meta)
 mean(meta$Coverage)
 ```
@@ -94,10 +94,97 @@ write_tsv(pcseqs %>% select(String), col_names = FALSE, file = "bamlists/test125
 in /outputs/203 runnign 203-parallelize-pca.sh    
 
 ```{sh, eval=FALSE}
-gunzip -c lg01-pca.beagle.gz | head -n 1 > chroms.beagle
-gunzip -c *beagle.gz | grep -v "marker"  >> chroms.beagle
+gunzip -c lg01-pca.beagle.gz | head -n 1 > chroms.beagle 
+gunzip -c lg*beagle.gz | grep -v "marker"  >> chroms.beagle
 gzip chroms.beagle
 srun -p bigmemm --mem=32G -t 03:00:00 python $HOME/pcangsd/pcangsd.py -beagle chroms.beagle.gz -o chroms -threads 10 > chroms.stdout 2>chroms.stderr &
+```
+
+
+```{r}
+cov<-read_delim("outputs/203/chroms.cov", col_names=FALSE, delim=" ") %>% as.matrix()
+```
+
+
+```{r}
+#' @param samples character vector with the individuals IDs in the order in which
+#' they were passed in the bamlist to angsd.
+#' @param cov covariance matrix
+covar2pcs <- function(samples, cov) {
+  
+  
+  eig <- eigen(cov, symm = TRUE)
+  PC <- as.data.frame(eig$vectors) %>%
+    as_tibble() %>%
+    setNames(sprintf("PC-%02d", 1:ncol(.)))
+  
+  samtib <- tibble(sample = samples)
+  
+  list(
+    PCs = bind_cols(samtib, PC),
+    eigevalues = eig$values
+  )
+}
+
+```
+
+```{r}
+pca <- covar2pcs(pcseqs$`Sample name`, cov)
+
+pca_long <- pca$PCs %>%
+  tidyr::gather(., key = "PC", "val", -sample)
+
+# then expand a grid of the possible comparisons (ordered)
+expg <- expand.grid(sample = pca$PCs$sample,
+                    PCx = sprintf("PC-%02d", 1:6),
+                    PCy = sprintf("PC-%02d", 1:6),
+                    stringsAsFactors = FALSE) %>%
+  tibble::as_tibble()
+
+# then left join the pca results onto that
+pca_pairs <- dplyr::left_join(expg, pca_long, by = c("sample", "PCx" = "PC")) %>%
+  dplyr::rename(val_x = val) %>%
+  dplyr::left_join(pca_long, by = c("sample", "PCy" = "PC")) %>%
+  dplyr::rename(val_y = val)
+
+pp_meta <- pca_pairs %>%   # just keep the first 6 PCs around
+  left_join(., pcseqs, by = c("sample" = "Sample name")) 
+
+npc <- 3
+pp_meta2 <- pp_meta %>%
+  filter( (PCx %in% sprintf("PC-%02d", 1:npc)) & 
+            (PCy %in% sprintf("PC-%02d", 1:npc)) )
+
+eig <- eigen(cov, symm = TRUE)
+var<-eig$values/sum(eig$values)
+cumvar<-cumsum(eig$values)/sum(eig$values)
+
+
+ggplot(pp_meta2) +
+  geom_point(aes(x=val_x, y=val_y, shape=`library number`, color=DI)) +
+  coord_fixed() +
+  facet_grid (PCx ~ PCy)
+
+```
+
+
+```{r}
+sub12<-pp_meta2 %>% filter( (PCx =="PC-01") & (PCy =="PC-02") )
+
+
+pc12<-ggplot(sub12, aes(x = val_x, y = val_y, color = Coverage, shape=DI)) +
+  geom_point(size = 2, alpha=0.75) +
+  scale_fill_discrete(na.value = "white") + 
+  theme_bw()+
+  theme(panel.grid=element_blank())+
+  xlab(paste("PC1", " ", round((100*var[1]),2), "%", sep = ""))+
+  ylab(paste("PC2", " ", round((100*var[2]),2), "%", sep = ""))+
+  ggtitle("PCs 1 & 2")+
+  theme(plot.title = element_text(hjust = 0.5)) +
+  scale_colour_viridis_c() +
+  facet_wrap(.~`library number`)
+
+pc12
 ```
 
 ## Aligning the two references with nucmer
