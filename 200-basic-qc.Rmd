@@ -9,6 +9,12 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
 ```
 
+```{r}
+library(tidyverse)
+library(ggrepel)
+library(RcppCNPy)
+```
+
 ## Check out data.
 
 Investigating a few samples with FastQC v0.11.9: SOMM515 hdi_A_10, sub-sampling:
@@ -62,6 +68,7 @@ comb<-select(comb, -CovFile)
 meta<-left_join(df, comb) %>% filter(Coverage !="NA") %>% mutate(DI=ifelse(str_detect(`Sample name`, '^h|^H'), "HighDI","LowDI")) 
 nrow(meta)
 mean(meta$Coverage)
+write_tsv(meta, "meta/meta.tsv")
 ```
 ```{r}
 meta %>% group_by(`library number`) %>%
@@ -82,7 +89,8 @@ Lanes very similar.
 ```{r} 
 pcseqs<- meta %>% filter(Coverage > 5)  %>% filter(str_detect(`Sample name`, '^h|^H|^l|^L')) %>%     
   mutate(String=paste0("/home/maccamp/dsm-omics/data/",`library number`,"/",SeqFile))
-
+pcseqs <- pcseqs %>% separate(`Sample name`, into=c("Type","Letter","Number"), remove=FALSE, sep="_" ) %>%
+  mutate(Individual=1:n())
 pcseqs%>% group_by(`library number`) %>% summarize(Count=n())
 ```
      
@@ -172,7 +180,7 @@ ggplot(pp_meta2) +
 sub12<-pp_meta2 %>% filter( (PCx =="PC-01") & (PCy =="PC-02") )
 
 
-pc12<-ggplot(sub12, aes(x = val_x, y = val_y, color = Coverage, shape=DI)) +
+pc12<-ggplot(sub12 %>% filter(Coverage < 30), aes(x = val_x, y = val_y, color = Coverage, shape=DI)) +
   geom_point(size = 2, alpha=0.75) +
   scale_fill_discrete(na.value = "white") + 
   theme_bw()+
@@ -185,6 +193,198 @@ pc12<-ggplot(sub12, aes(x = val_x, y = val_y, color = Coverage, shape=DI)) +
   facet_wrap(.~`library number`)
 
 pc12
+```
+
+```{r}
+pc12<-ggplot(sub12, aes(x = val_x, y = val_y, color = DI, shape=`library number`)) +
+  geom_point(size = 2, alpha=0.75) +
+  scale_fill_discrete(na.value = "white") + 
+  theme_bw()+
+  theme(panel.grid=element_blank())+
+  xlab(paste("PC1", " ", round((100*var[1]),2), "%", sep = ""))+
+  ylab(paste("PC2", " ", round((100*var[2]),2), "%", sep = ""))+
+  ggtitle("PCs 1 & 2")+
+  theme(plot.title = element_text(hjust = 0.5)) +
+  scale_colour_viridis_d() 
+  
+pc12
+
+```
+
+```{r}
+pc12<-ggplot(sub12, aes(x = val_x, y = val_y, color = DI, shape=`library number`)) +
+#  geom_point(size = 2, alpha=0.75) +
+  geom_text_repel(aes(label=Letter), max.overlaps = Inf, alpha=0.75) +
+  scale_fill_discrete(na.value = "white") + 
+  theme_bw()+
+  theme(panel.grid=element_blank())+
+  xlab(paste("PC1", " ", round((100*var[1]),2), "%", sep = ""))+
+  ylab(paste("PC2", " ", round((100*var[2]),2), "%", sep = ""))+
+  ggtitle("PCs 1 & 2")+
+  theme(plot.title = element_text(hjust = 0.5)) +
+  scale_colour_viridis_d() +
+  facet_wrap(.~DI)
+  
+pc12
+
+```
+
+What should we expect??     
+"During the spring of 2020 we will work with the FCCL to make 56 crosses, to be analyzed in 2020. We will create crosses for two sets of tanks: (1) mixed DI levels and (2) separate DI levels (low or high). The first set will consist of three tanks each with 8 crosses each with parents of varying DI levels (for a total of 24 single pair crosses, or 48 parents across all three tanks). The second set of tanks will consist of four tanks, two of these tanks will have 8 crosses each with low DI levels, while the other two tanks will have 8 crosses each with high DI levels. This design will enable us to examine if there is a tank effect on how varying DI levels perform. After Delta Smelt in these 7 tanks have been raised to subadult or adulthood under traditional FCCL conditions (including equalizing family size, thinning to about 250 individuals per tank, etc.; Lindberg et al. 2013), we will sacrifice the fish for analysis. We expect to take roughly 100 adult fish per tank. "    
+
+Checking for relatedness:
+
+```{sh, eval=FALSE}
+srun -p bigmemm --mem=32G -t 03:00:00 python $HOME/pcangsd/pcangsd.py -beagle outputs/203/chroms.beagle.gz -kinship -o outputs/203/test125.kinship -threads 10 > outputs/203/pca.stdout 2> outputs/203/pca.stderr &
+
+srun -p bigmemm --mem=32G -t 03:00:00 python $HOME/pcangsd/pcangsd.py -beagle outputs/203/chroms.beagle.gz -relate outputs/203/test125.kinship.kinship.npy -o outputs/203/test125-kinremoved -threads 10 > outputs/203/pca-kin.stdout 2> outputs/203/pca-kin.stderr &
+```
+
+Read 129 samples and 3335637 sites
+
+Estimating population allele frequencies
+EM (MAF) converged at iteration: 11
+
+Number of sites after MAF filtering (0.05): 1488529
+
+Masking related individuals with pair-wise kinship estimates >= 0.0625
+Keeping 121 individuals after filtering (removing 8)
+Boolean vector of unrelated individuals saved as outputs/203/test125-kinremoved.unrelated.npy (Binary)
+Parsing Beagle file
+Read 121 samples and 3335637 sites
+
+Estimating population allele frequencies
+EM (MAF) converged at iteration: 11
+
+Number of sites after MAF filtering (0.05): 1483981    
+
+Examining Kin and PCs     
+
+```{r}
+kin<-npyLoad("outputs/203/test125.kinship.kinship.npy")
+excl<-npyLoad("outputs/203/test125-kinremoved.unrelated.npy") %>% as_tibble()
+
+#Convert upper half of matrix to data frame compatible 
+kinrind<-which(upper.tri(kin, diag = TRUE), arr.ind = TRUE)
+kin<-cbind(kinrind, kin[kinrind])
+kindf<-as_tibble(kin) %>%
+  rename(Ind1=row, Ind2=col, Kinship=V3) %>%
+  filter(Ind1 != Ind2) %>%
+  mutate(Mean=mean(Kinship))
+
+#Can I replace Ind1 and Ind2 with individual labels???
+df<-kindf %>% left_join(pcseqs, by=c("Ind1"="Individual")) %>% 
+  left_join(pcseqs, by=c("Ind2"="Individual")) 
+
+#Ahh, and what are our "related" individuals
+df %>% filter(Kinship>0.0625) %>% group_by(DI.x, DI.y) %>% summarize(Count=n(), MeanKinship=mean(Kinship))
+```
+
+
+
+```{r}
+cov<-read_delim("outputs/203/test125-kinremoved.cov", col_names=FALSE, delim=" ") %>% as.matrix()
+```
+
+
+```{r}
+meta<-pcseqs
+kept<-meta[excl$value!=0,]
+dropped<-meta[excl$value==0,]
+
+#These are the ones that were dropped:
+dropped
+```
+
+```{r}
+pca <- covar2pcs(kept$Individual, cov)
+
+pca_long <- pca$PCs %>%
+  tidyr::gather(., key = "PC", "val", -sample)
+
+# then expand a grid of the possible comparisons (ordered)
+expg <- expand.grid(sample = pca$PCs$sample,
+                    PCx = sprintf("PC-%02d", 1:6),
+                    PCy = sprintf("PC-%02d", 1:6),
+                    stringsAsFactors = FALSE) %>%
+  tibble::as_tibble()
+
+# then left join the pca results onto that
+pca_pairs <- dplyr::left_join(expg, pca_long, by = c("sample", "PCx" = "PC")) %>%
+  dplyr::rename(val_x = val) %>%
+  dplyr::left_join(pca_long, by = c("sample", "PCy" = "PC")) %>%
+  dplyr::rename(val_y = val)
+
+pp_meta <- pca_pairs %>%   # just keep the first 6 PCs around
+  left_join(., kept, by = c("sample" = "Individual")) 
+
+npc <- 3
+pp_meta2 <- pp_meta %>%
+  filter( (PCx %in% sprintf("PC-%02d", 1:npc)) & 
+            (PCy %in% sprintf("PC-%02d", 1:npc)) )
+
+eig <- eigen(cov, symm = TRUE)
+var<-eig$values/sum(eig$values)
+cumvar<-cumsum(eig$values)/sum(eig$values)
+
+
+ggplot(pp_meta2) +
+  geom_point(aes(x=val_x, y=val_y, shape=`library number`, color=DI)) +
+  coord_fixed() +
+  facet_grid (PCx ~ PCy)
+
+```
+    
+    
+```{r}
+sub12<-pp_meta2 %>% filter( (PCx =="PC-01") & (PCy =="PC-02") )
+
+
+pc12<-ggplot(sub12 %>% filter(Coverage < 30), aes(x = val_x, y = val_y, color = Coverage, shape=DI)) +
+  geom_point(size = 2, alpha=0.75) +
+  scale_fill_discrete(na.value = "white") + 
+  theme_bw()+
+  theme(panel.grid=element_blank())+
+  xlab(paste("PC1", " ", round((100*var[1]),2), "%", sep = ""))+
+  ylab(paste("PC2", " ", round((100*var[2]),2), "%", sep = ""))+
+  ggtitle("PCs 1 & 2")+
+  theme(plot.title = element_text(hjust = 0.5)) +
+  scale_colour_viridis_c() +
+  facet_wrap(.~`library number`)
+
+pc12
+```
+
+## GWAS
+```{r}
+write_tsv(pcseqs %>% mutate(Pheno=ifelse(DI=="HighDI", 0, 1)) %>% select(Pheno), "bamlists/test125.phenos", col_names=FALSE)
+```
+
+
+Putting this in outputs/204
+
+Read them all in    
+```{r}
+list<-list.files(path = "outputs/204", pattern="lrt0.gz", full.names = TRUE)
+lrts<-lapply(list, read_tsv) %>% bind_rows() %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
+  filter(log10p > 1)
+```
+
+
+
+```{r}
+ggplot(lrts) + geom_point(aes(x=Position, y=log10p, color=log10p), alpha=0.75, cex=0.7)+
+  geom_hline(yintercept = 6, lty=2, alpha=0.6) +
+  scale_color_gradient(low="grey",high="skyblue") +
+  theme_bw()+
+  theme(axis.text.x= element_text(angle=45,hjust=1)) +
+  theme(panel.grid = element_blank()) +
+  ylab("-log10(p)") +
+  ggtitle("DI GWAS") +
+  facet_wrap(.~Chromosome, scales = "free_x") +
+  theme(plot.title = element_text(hjust=0.5))
+
+ggsave("outputs/204/prelim-DI-gwas-all-chroms.jpeg", width=14, height=14)
 ```
 
 ## Aligning the two references with nucmer

@@ -1,0 +1,63 @@
+---
+title: "400-coverage"
+author: "Mac Campbell"
+date: "1/24/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+```
+
+```{r}
+library(tidyverse)
+```
+
+## Reduce span of coverage, evaluate a single chrom
+
+```{r}
+meta<-read_tsv("meta/meta.tsv")
+```
+     
+```{r}
+ggplot(meta) +
+  geom_histogram(aes(Coverage, fill=`library number`)) +
+  theme_bw() +
+  theme(panel.grid=element_blank()) +
+  ylab("Count") +
+  theme(axis.title = element_text(face="bold")) +
+  scale_y_continuous(breaks=c(0,5,10,15,20,25))
+```
+
+```{r}
+mean(meta$Coverage)
+sd(meta$Coverage)
+```
+
+```{r}
+pcseqs<- meta %>% filter(Coverage > mean(meta$Coverage) - sd(meta$Coverage)) %>%
+  filter(Coverage < mean(meta$Coverage) + sd(meta$Coverage)) %>%
+  filter(str_detect(`Sample name`, '^h|^H|^l|^L')) %>%     
+  mutate(String=paste0("/home/maccamp/dsm-omics/data/",`library number`,"/",SeqFile))
+
+pcseqs <- pcseqs %>% separate(`Sample name`, into=c("Type","Letter","Number"), remove=FALSE, sep="_" ) %>%
+  mutate(Individual=1:n())
+
+pcseqs%>% group_by(`library number`) %>% summarize(Count=n())
+```
+
+```{r}
+ggplot(pcseqs) +
+  geom_histogram(aes(Coverage, fill=`library number`)) +
+  theme_bw() +
+  theme(panel.grid=element_blank()) +
+  ylab("Count") +
+  theme(axis.title = element_text(face="bold")) +
+  scale_y_continuous(breaks=c(0,5,10,15,20,25))
+```
+
+```{r}
+write_tsv(pcseqs %>% select(String), col_names = FALSE, file = "bamlists/test96.bamlist")
+```
+
+ 203-parallelize-pca.sh 
