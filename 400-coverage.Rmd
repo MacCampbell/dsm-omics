@@ -60,4 +60,87 @@ ggplot(pcseqs) +
 write_tsv(pcseqs %>% select(String), col_names = FALSE, file = "bamlists/test96.bamlist")
 ```
 
- 203-parallelize-pca.sh 
+ 203-parallelize-pca.sh in outputs/400 on farm     
+ 
+ (not to think about adding -postCutoff)     
+ 
+```{sh, eval=FALSE} 
+srun -p bigmemm --mem=32G -t 03:00:00 python $HOME/pcangsd/pcangsd.py -beagle outputs/400/lg01-pca.beagle.gz -o outputs/400/lg01 -threads 10 > outputs/400/chroms.stdout 2>outputs/400/chroms.stderr &
+```
+
+Read 96 samples and 46576 sites
+
+Estimating population allele frequencies
+EM (MAF) converged at iteration: 11
+
+Number of sites after MAF filtering (0.05): 4657    
+
+```{r}
+cov<-read_delim("outputs/400/lg01.cov", col_names=FALSE, delim=" ") %>% as.matrix()
+```
+
+
+```{r}
+#' @param samples character vector with the individuals IDs in the order in which
+#' they were passed in the bamlist to angsd.
+#' @param cov covariance matrix
+covar2pcs <- function(samples, cov) {
+  
+  
+  eig <- eigen(cov, symm = TRUE)
+  PC <- as.data.frame(eig$vectors) %>%
+    as_tibble() %>%
+    setNames(sprintf("PC-%02d", 1:ncol(.)))
+  
+  samtib <- tibble(sample = samples)
+  
+  list(
+    PCs = bind_cols(samtib, PC),
+    eigevalues = eig$values
+  )
+}
+
+```
+
+```{r}
+pca <- covar2pcs(pcseqs$`Sample name`, cov)
+
+pca_long <- pca$PCs %>%
+  tidyr::gather(., key = "PC", "val", -sample)
+
+# then expand a grid of the possible comparisons (ordered)
+expg <- expand.grid(sample = pca$PCs$sample,
+                    PCx = sprintf("PC-%02d", 1:6),
+                    PCy = sprintf("PC-%02d", 1:6),
+                    stringsAsFactors = FALSE) %>%
+  tibble::as_tibble()
+
+# then left join the pca results onto that
+pca_pairs <- dplyr::left_join(expg, pca_long, by = c("sample", "PCx" = "PC")) %>%
+  dplyr::rename(val_x = val) %>%
+  dplyr::left_join(pca_long, by = c("sample", "PCy" = "PC")) %>%
+  dplyr::rename(val_y = val)
+
+pp_meta <- pca_pairs %>%   # just keep the first 6 PCs around
+  left_join(., pcseqs, by = c("sample" = "Sample name")) 
+
+npc <- 3
+pp_meta2 <- pp_meta %>%
+  filter( (PCx %in% sprintf("PC-%02d", 1:npc)) & 
+            (PCy %in% sprintf("PC-%02d", 1:npc)) )
+
+eig <- eigen(cov, symm = TRUE)
+var<-eig$values/sum(eig$values)
+cumvar<-cumsum(eig$values)/sum(eig$values)
+
+
+ggplot(pp_meta2) +
+  geom_point(aes(x=val_x, y=val_y, shape=`library number`, color=DI)) +
+  coord_fixed() +
+  facet_grid (PCx ~ PCy)
+
+```
+
+
+-postCutoff set to 0.9 and thresh to 0.75
+
