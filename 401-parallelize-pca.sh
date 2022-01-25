@@ -10,7 +10,7 @@ list=$2
 
 #Setting minInd to 3/4 of inds
 lines=$(wc -l < "$bamlist")
-thresh=$((lines*(3/4)))
+thresh=$((3*lines/4)))
 
 while read chrom; do
   echo "#!/bin/bash -l
