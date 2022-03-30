@@ -142,4 +142,18 @@ Running  203-parallelize-pca.sh in outputs/601
 
 `bash $HOME/dsm-omics/203-parallelize-pca.sh $HOME/dsm-omics/bamlists/test96.bamlist $HOME/dsm-omics/meta/1mbseqs.txt`     
 
+Set up beagle file:
+
+```{sh, eval=FALSE}
+gunzip -c lg01-pca.beagle.gz | head -n 1 > chroms.beagle 
+gunzip -c lg*beagle.gz | grep -v "marker"  >> chroms.beagle
+gzip chroms.beagle
+srun -p bigmemm --mem=32G -t 03:00:00 python $HOME/pcangsd/pcangsd.py -beagle chroms.beagle.gz -o chroms -threads 10 > chroms.stdout 2>chroms.stderr &
+```
+
+```{sh, eval=FALSE}
+srun -p bigmemm --mem=32G -t 03:00:00 python $HOME/pcangsd/pcangsd.py -beagle outputs/601/chroms.beagle.gz -kinship -o outputs/601/test96.kinship -threads 10 > outputs/601/pca.stdout 2> outputs/601/pca.stderr &
+
+srun -p bigmemm --mem=32G -t 03:00:00 python $HOME/pcangsd/pcangsd.py -beagle outputs/601/chroms.beagle.gz -relate outputs/601/test96.kinship.kinship.npy -o outputs/601/test96-kinremoved -threads 10 > outputs/601/pca-kin.stdout 2> outputs/601/pca-kin.stderr &
+```
 

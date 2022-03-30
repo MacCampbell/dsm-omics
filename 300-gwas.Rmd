@@ -108,6 +108,10 @@ write_tsv(tester %>% select(Pheno), col_names=FALSE, file="bamlists/test80.pheno
 
 Running 300.1-do-asso.sh
 
+`bash $HOME/dsm-omics/301-do-asso.sh $HOME/dsm-omics/bamlists/test80.bamlist  $HOME/dsm-omics/meta/1mbseqs.txt $HOME/dsm-omics/bamlists/test80.pheno`  Node reserved for maintenance!!!
+
+
+
 PCA in outputs/303? Not done yet
 
 
