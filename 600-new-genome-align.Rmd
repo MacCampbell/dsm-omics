@@ -1,0 +1,139 @@
+---
+title: "600-new-genome-align"
+author: "Mac Campbell"
+date: "3/15/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,warning=FALSE,message=FALSE)
+```
+
+
+```{r}
+library(tidyverse)
+```
+
+Old data mv *bam *bai *cov *sh *out /group/millermrgrp4/maccamp/smelt-wgs/original-alignments/     
+Dropping unmatched data     
+
+## Aligning to the new genome
+in each subdir
+
+bash ../../201-align-and-sort.sh sequences.txt $HOME/genomes/GCF021917145.1/GCF_021917145.1_fHypTra1_genomic.fna
+
+
+## Computing coverage
+     
+See 202-compute-coverage.sh, doing by chrom with a bed file for the entire assembly.    
+
+`cat GCF_021917145.1_fHypTra1_genomic.fna.fai  | cut -f 1,2 | awk '{print $1, 0, $2}' > GCF_021917145.1_fHypTra1_genomic.fna.bed`
+
+../../202-compute-coverage.sh list.txt $HOME/genomes/GCF021917145.1/GCF_021917145.1_fHypTra1_genomic.fna.bed
+ 
+
+Meta   
+```{r}
+df<-read_csv("sequenced-fish/samples-barcodes-01042022.csv")
+```
+
+Bring in coverage:
+
+```{r}
+files<-list.files(path="outputs/600", pattern="*.cov", full.names=TRUE)
+list<-lapply(files, read_tsv, col_names=FALSE) 
+names<-lapply(files, basename)
+all<-mapply(c, list, names, SIMPLIFY = FALSE)
+comb<-as_tibble(rbindlist(all, fill=T)) %>% rename(Coverage=X1, CovFile=V1)
+
+comb$SeqFile<-gsub(".cov",".bam",comb$CovFile)
+comb$`Sample name`<-gsub("_R1.sort.flt.bam","",comb$SeqFile)
+comb<-select(comb, -CovFile)
+```
+
+
+```{r}
+meta<-left_join(df, comb) %>% filter(Coverage !="NA") %>% mutate(DI=ifelse(str_detect(`Sample name`, '^h|^H'), "HighDI",
+                                                                           ifelse(str_detect(`Sample name`, '^l|^L'), "LowDI", "Epi")))
+nrow(meta)
+mean(meta$Coverage)
+write_tsv(meta, "meta/meta-ncbi.tsv")
+```
+
+Removing epigenetics fish for summarizing crosses   
+```{r}
+sum<-meta %>% filter(DI != "Epi") %>% separate(`Sample name`, into=c("CrossType","Tank","Number"), remove=FALSE, sep="_")
+sum$Tank<-toupper(sum$Tank)
+sum$CrossType<-toupper(sum$CrossType)
+
+sum %>% select(`Sample name`, CrossType, Tank, Number) %>% group_by(CrossType, Tank) %>% summarize(Count=n())
+
+sum %>% select(`Sample name`, CrossType, Tank, Number) %>% group_by(CrossType) %>% summarize(Count=n())
+
+write_csv(sum, "meta/meta-excl-epi-ncbi.csv")
+```
+
+
+
+```{r}
+meta %>% group_by(`library number`) %>%
+  summarize(AvgCoverage=mean(Coverage))
+```
+
+```{r}
+ggplot(meta) +
+  geom_histogram(aes(Coverage, fill=`library number`)) +
+  theme_bw() +
+  theme(panel.grid=element_blank()) +
+  ylab("Count") +
+  theme(axis.title = element_text(face="bold")) +
+  scale_y_continuous(breaks=c(0,5,10,15,20,25))
+```
+
+Similar coverage overall!!
+
+Coverage excluding epi samples
+```{r}
+ggplot(sum) +
+  geom_histogram(aes(Coverage, fill=`library number`)) +
+  theme_bw() +
+  theme(panel.grid=element_blank()) +
+  ylab("Count") +
+  theme(axis.title = element_text(face="bold")) +
+  scale_y_continuous(breaks=c(0,5,10,15,20,25))
+```
+     
+```{r}
+sum %>% group_by(`library number`) %>%
+  summarize(AvgCoverage=mean(Coverage))
+```
+
+
+## Creating a  test dataset
+
+
+```{r}
+pcseqs<- sum %>% filter(Coverage > mean(sum$Coverage) - sd(sum$Coverage)) %>%
+  filter(Coverage < mean(sum$Coverage) + sd(sum$Coverage)) %>%
+  mutate(String=paste0("/home/maccamp/dsm-omics/data/",`library number`,"/",SeqFile))
+
+pcseqs <- pcseqs %>% separate(`Sample name`, into=c("Type","Letter","Number"), remove=FALSE, sep="_" ) %>%
+  mutate(Individual=1:n())
+
+pcseqs%>% group_by(`library number`) %>% summarize(Count=n())
+pcseqs%>% group_by(CrossType) %>% summarize(Count=n())
+
+```
+     
+```{r}
+nrow(pcseqs)
+mean(pcseqs$Coverage)
+sd(pcseqs$Coverage)
+```
+
+```{r}
+write_tsv(pcseqs %>% select(String), col_names = FALSE, file = "bamlists/test96.bamlist")
+```
+     
+     
+Running  203-parallelize-pca.sh in outputs/600

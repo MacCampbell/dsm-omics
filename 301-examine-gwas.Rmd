@@ -1,0 +1,83 @@
+---
+title: "301-examine-gwas"
+author: "Mac Campbell"
+date: "3/15/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+```
+
+```{r}
+library(tidyverse)
+```
+
+## We know have an annotated genome. Is there anything interesting going on at the peaks?
+
+```{r}
+d19<-read_tsv("outputs/300/lg19-asso.lrt0.gz") %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
+  filter(log10p > 1)
+
+```
+```{r}
+ggplot(d19) + geom_point(aes(x=Position, y=log10p, color=log10p), alpha=0.75, cex=0.7)+
+  geom_hline(yintercept = 6, lty=2, alpha=0.6) +
+  scale_color_gradient(low="grey",high="skyblue") +
+  theme_bw()+
+  theme(axis.text.x= element_text(angle=45,hjust=1)) +
+  theme(panel.grid = element_blank()) +
+  ylab("-log10(p)") +
+  ggtitle("Sex GWAS") +
+  theme(plot.title = element_text(hjust=0.5))
+```
+
+```{r}
+ d19 %>% arrange(-log10p)
+```
+
+
+Let's align to the annotated version
+
+`~/genomes/GCF021917145.1/temp$ samtools faidx ../../hypomesus-20210204/Hyp_tra_F_20210204.fa lg19:15280368-15280568
+>lg19:15280368-15280568
+AATCGGTGCTATGTAATTAATCATGATTAATCCATAGGAACCTGTGATTAATTTGATTAC
+AATTTTTAATCATTACACAGCCCCAAAAATAATTTCTTCTTCATTTTCTGCTCCAGACTG
+GAACTGTTGCCTTTTATGCATCCATCTCTGTGAAAGGTGACAAATGAGCGGGTGTTTGGT
+GCATGACAAGTGCAGTCAAAC
+(base) maccamp@farm:~/genomes/GCF021917145.1/temp$ samtools faidx ../../hypomesus-20210204/Hyp_tra_F_20210204.fa lg19:15280368-15280568 > hit1.fasta
+(base) maccamp@farm:~/genomes/GCF021917145.1/temp$ blastn -query hit1.fasta -db ../GCF_021917145.1_fHypTra1_genomic.fna -outfmt 7
+# BLASTN 2.10.0+
+# Query: lg19:15280368-15280568
+# Database: ../GCF_021917145.1_fHypTra1_genomic.fna
+# Fields: query acc.ver, subject acc.ver, % identity, alignment length, mismatches, gap opens, q. start, q. end, s. start, s. end, evalue, bit score
+# 9 hits found
+lg19:15280368-15280568	NC_061078.1	100.000	201	0	0	1	201	15280368	15280568	6.48e-102	372`
+lg19:15280368-15280568	NW_025814044.1	94.527	201	8	1	1	201	420171	419974	1.85e-82	307
+lg19:15280368-15280568	NW_025813701.1	93.976	83	5	0	1	83	107146	107228	5.57e-28	126
+l
+
+Now to get some blocks
+
+```{r}
+d19 %>% top_frac(log10p, n = .01) %>% filter(Position < 14e6) %>% mutate(Min=min(Position)) %>% mutate(Max=max(Position)) %>%
+  mutate(MaxSite=max(log10p)) 
+```
+11677027 12082181.... What's interesting
+11745538 has the max score and is placed in some region where RNAseq data aligns, but it is unannotated. 
+lets get that region(11745522-11745704)
+(base) maccamp@farm:~/genomes/GCF021917145.1/temp$ samtools faidx ../../hypomesus-20210204/Hyp_tra_F_20210204.fa lg19:11745522-11745704 > region1.fasta
+>lg19:11745522-11745704
+AACTCCATAGTGACCATGGGCGGAACTTCGAGTCCCAGGTCGTAGCGAGGTCTGCCGACG
+GCTGGGAGTATCCAAGACTAGGGCGACACCTCTCCACCCGCAGAGCGATGGGCTGGTGGA
+GCGGTTCAACCGCACCCTGGCTACCCAGCTCGCCATCCTGACCAGCCAACATCAGCGGGA
+CTG
+Found a cople of orfs
+Not really sure what it is.
+
+```{r}
+d19 %>% top_frac(log10p, n = .001) %>% filter(Position > 14e6) %>% mutate(Min=min(Position)) %>% mutate(Max=max(Position)) %>%
+  mutate(MaxSite=max(log10p)) 
+```
+
+Probably we should look at the allele frequencies in males and females.

@@ -1,0 +1,225 @@
+---
+title: "500-local-pca"
+author: "Mac Campbell"
+date: "1/25/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message = FALSE)
+```
+
+
+```{r}
+library(tidyverse)
+library(lostruct)
+library(RColorBrewer)
+library(vcfR)
+```
+
+following: file:///Users/mac/github/inversions/701-Chinook-larger.html
+      
+
+
+## Calling Genos
+
+Chinook example    
+```{sh, eval=FALSE}
+srun -t 36:00:00 -p high --mem=32G --nodes=2 $HOME/angsd/angsd -minInd 120 -nthreads 12 \
+-bam temp.bamlist -rf $HOME/genomes/chinook/chinook.chroms \
+-out larger \
+-minMaf 0.05 -minMapQ 20 -minQ 20 -GL 1 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+-doGeno 2 -doPost 1 -postCutoff 0.9 -doPlink 2  > larger.out 2> larger.err &
+
+#Using     
+srun -p bigmemm --mem=32G -t 1-03:00:00 --nodes=2 $HOME/angsd/angsd -minInd 82 -nthreads 12 \
+-bam $HOME/dsm-omics/bamlists/test92.bamlist -rf $HOME/dsm-omics/meta/lgs.txt \
+-out outputs/500/localpca \
+-minMaf 0.05 -minMapQ 20 -minQ 20 -GL 1 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+-doGeno 2 -doPost 1 -postCutoff 0.9 -doPlink 2  > outputs/500/snps.out 2> outputs/500/snps.err &
+```
+
+```{sh, eval=FALSE}
+#in outputs/500
+plink --tped localpca.tped --tfam localpca.tfam --recodeA --out larger-geno-numeric --allow-extra-chr --noweb
+```
+
+
+## Yue style analysis
+```{r, eval=FALSE}
+snps <- read_delim("outputs/500/larger-geno-numeric.raw", delim = " ") %>%
+  select(-IID, -SEX, -PAT, -MAT, -PHENOTYPE)
+save(snps, file="outputs/500/snps.rda")
+````
+
+```{r, eval=FALSE}
+load(outputs/500/snps.rda)
+gen<-snps
+gen <- apply(gen, 2, function(x) replace(x, is.na(x), as.numeric(names(which.max(table(x))))))
+save(gen, file="outputs/500/gen.rda")
+```
+
+```{r}
+#load("outputs/500/gen.rda")
+ws=100 #window size of SNPs.The last window will be omitted as it is less than window size
+mds=2 # MDS axes.
+snp <- t(gen) ###transpose it so rows as SNPs, columns as individuals.
+mat <- as.matrix(snp)
+pcs <- eigen_windows(mat, k=2, win=ws)
+pcdist <- pc_dist(pcs,npc=2)
+mds <- cmdscale(pcdist, eig=TRUE, k=mds)
+mds.coords <- mds$points
+colnames(mds.coords) <- paste0("MDS", 1:ncol(mds.coords))
+mds.coords <- mds.coords %>%
+  as.data.frame() %>%
+  mutate(Window=seq(1,nrow(mds.coords),1))
+```
+
+```{r}
+outl <- boxplot.stats(mds.coords$MDS1)$out
+outl_ind <- which(mds.coords$MDS1 %in% c(outl))
+outl_ind
+```
+
+```{r}
+outliers<-mds.coords[outl_ind,]
+
+ggplot(mds.coords)+
+  geom_point(aes(x=Window, y=MDS1), alpha=0.5) +
+  geom_point(data=outliers, aes(x=Window, y=MDS1), color="blue") +
+  theme_bw() + 
+  theme(panel.grid = element_blank())
+```
+
+
+```{r}
+outl2 <- boxplot.stats(mds.coords$MDS2)$out
+outl_ind2 <- which(mds.coords$MDS2 %in% c(outl2))
+outl_ind2
+```
+
+```{r}
+outliers2<-mds.coords[outl_ind2,]
+
+ggplot(mds.coords)+
+  geom_point(aes(x=Window, y=MDS2), alpha=0.5) +
+  geom_point(data=outliers2, aes(x=Window, y=MDS2), color="blue") +
+  theme_bw() + 
+  theme(panel.grid = element_blank())
+```
+
+```{r}
+outl3 <- boxplot.stats(mds.coords$MDS3)$out
+outl_ind3 <- which(mds.coords$MDS3 %in% c(outl3))
+outl_ind3
+```
+
+```{r}
+outliers3<-mds.coords[outl_ind3,]
+
+ggplot(mds.coords)+
+  geom_point(aes(x=Window, y=MDS3), alpha=0.5) +
+  geom_point(data=outliers3, aes(x=Window, y=MDS3), color="blue") +
+  theme_bw() + 
+  theme(panel.grid = element_blank())
+
+```
+
+
+## MDS by MDS
+```{r}
+ggplot() +
+  geom_point(data=mds.coords, aes(x=MDS1, y=MDS2)) +
+  geom_point(data=outliers, aes(x=MDS1, y=MDS2), color="blue")
+```
+
+
+## Find chroms by window:
+```{r}
+outliers %>% as_tibble() %>% arrange(-MDS1)
+```
+
+### Individual chroms
+
+
+```{r}
+mdsvalues<-function(chrom) {
+
+df <- snps %>% dplyr:: select(starts_with(chrom))
+gen <- apply(df, 2, function(x) replace(x, is.na(x), as.numeric(names(which.max(table(x))))))
+ws=100 #window size of SNPs.The last window will be omitted as it is less than window size
+mds=5 #40 MDS axes.
+snp <- t(gen) ###transpose it so rows as SNPs, columns as individuals.
+mat <- as.matrix(snp)
+pcs <- eigen_windows(mat, k=2, win=ws)
+pcdist <- pc_dist(pcs,npc=2)
+mds <- cmdscale(pcdist, eig=TRUE, k=mds)
+mds.coords <- mds$points
+colnames(mds.coords) <- paste0("MDS", 1:ncol(mds.coords))
+mds.coords <- mds.coords %>%
+  as.data.frame() %>%
+  mutate(Window=seq(1,nrow(mds.coords),1)) %>%
+  mutate(Chromosome=chrom)
+}
+```
+
+Get chrom names:
+```{r}
+chroms<-read_tsv("meta/lgs.txt", col_names = c("Chromosome"))
+out<-lapply(chroms$Chromosome,mdsvalues)
+ 
+merged = as_tibble(Reduce(function(...) merge(..., all=T), out)) %>%
+  arrange(Chromosome, Window) %>%
+  mutate(Index=1:n())
+```
+
+Plot      
+````{r}
+outlm <- boxplot.stats(merged$MDS1)$out
+outl_indm <- which(merged$MDS1 %in% c(outlm))
+outl_indm
+```
+
+```{r}
+outliersm<-merged[outl_indm,]
+
+
+#places to put labels based on index
+chromsc<-merged %>% group_by(Chromosome) %>% mutate(Start=min(Index), Stop=max(Index)) %>% 
+  select(Chromosome,Start,Stop) %>% unique() %>% 
+  mutate(Position=round((Start+Stop)/2))
+
+#Make enough colors
+nb.cols <- nrow(chromsc)
+mycolors <- colorRampPalette(brewer.pal(8, "Set1"))(nb.cols)
+
+
+ggplot(merged) +
+  geom_rect(data=chromsc, aes(xmin=Start, xmax=Stop, ymin=min(merged$MDS1), 
+                              ymax=max(merged$MDS1)), fill=mycolors, alpha=0.25) +
+  geom_point(data=merged, aes(x=Index, y=MDS1, color=Chromosome), alpha=0.75, cex=0.5) +
+  geom_point(data=outliersm, aes(x=Index, y=MDS1), color="black", cex=0.5) +
+  theme_bw() +
+  scale_x_continuous(breaks=chromsc$Position, labels=chromsc$Chromosome) +
+  theme(axis.text.x = element_text(angle=45, hjust = 1, face="bold", size=6)) +
+  theme(legend.title = element_blank()) +
+  theme(panel.grid = element_blank()) +
+  theme(legend.position = "none") +
+  scale_color_manual(values=mycolors) +
+  ylab("MDS1") +
+  xlab("Chromosome")
+ggsave("outputs/500/dsm-mds1.jpg", width=10, height=4)
+```
+
+MDS by MDS    
+```{r}
+df<-merged %>% mutate(Outlier=ifelse(Index %in% outliersm$Index, "Yes","No"))
+ggplot(df) +
+  geom_point(aes(x=MDS1, y=MDS2, color=Outlier), alpha=0.75) +
+  theme_bw() +
+  theme(panel.grid = element_blank()) +
+  xlab("MDS1") +
+  ylab("MDS2") +
+  facet_wrap(.~Chromosome)
+```
+

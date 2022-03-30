@@ -32,6 +32,49 @@ first two digits is a generation number, the three in the middle is a cross numb
 
 Bring in coverage:
 
+
+Meta   
+```{r}
+df<-read_csv("sequenced-fish/samples-barcodes-01042022.csv")
+```
+
+Bring in coverage:
+
+```{r}
+files<-list.files(path="outputs/600", pattern="*.cov", full.names=TRUE)
+list<-lapply(files, read_tsv, col_names=FALSE) 
+names<-lapply(files, basename)
+all<-mapply(c, list, names, SIMPLIFY = FALSE)
+comb<-as_tibble(rbindlist(all, fill=T)) %>% rename(Coverage=X1, CovFile=V1)
+
+comb$SeqFile<-gsub(".cov",".bam",comb$CovFile)
+comb$`Sample name`<-gsub("_R1.sort.flt.bam","",comb$SeqFile)
+comb<-select(comb, -CovFile)
+```
+
+
+```{r}
+meta<-left_join(df, comb) %>% filter(Coverage !="NA") %>% mutate(DI=ifelse(str_detect(`Sample name`, '^h|^H'), "HighDI","LowDI")) 
+nrow(meta)
+mean(meta$Coverage)
+write_tsv(meta, "meta/dsm-meta.tsv")
+```    
+
+```{r}
+meta %>% group_by(`library number`) %>%
+  summarize(AvgCoverage=mean(Coverage))
+```
+
+```{r}
+ggplot(meta) +
+  geom_histogram(aes(Coverage, fill=`library number`)) +
+  theme_bw() +
+  theme(panel.grid=element_blank()) +
+  ylab("Count") +
+  theme(axis.title = element_text(face="bold")) +
+  scale_y_continuous(breaks=c(0,5,10,15,20,25))
+```
+
 ```{r}
 files<-list.files(path="outputs/300", pattern="*.cov", full.names=TRUE)
 list<-lapply(files, read_tsv, col_names=FALSE) 

@@ -1,0 +1,361 @@
+---
+title: "501-local-pca-by-chrom"
+author: "Mac Campbell"
+date: "1/31/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+```
+
+SNPs generated from 92 individuals like so:    
+
+```{sh, eval=FALSE}
+srun -p bigmemm --mem=32G -t 1-03:00:00 --nodes=2 $HOME/angsd/angsd -minInd 82 -nthreads 12 \
+-bam $HOME/dsm-omics/bamlists/test92.bamlist -rf $HOME/dsm-omics/meta/lgs.txt \
+-out outputs/500/localpca \
+-minMaf 0.05 -minMapQ 20 -minQ 20 -GL 1 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+-doGeno 2 -doPost 1 -postCutoff 0.9 -doPlink 2  > outputs/500/snps.out 2> outputs/500/snps.err &
+```   
+
+    
+```{r}
+library(tidyverse)
+library(RColorBrewer)
+library(vcfR)
+library(adegenet)
+```
+
+```{r, eval=FALSE}
+data<-read_tsv("outputs/500/localpca.geno.gz", col_names = FALSE)
+
+#Last col all empty
+data<-data[-ncol(data)]
+
+genos <- data %>% select(-X1,-X2)
+
+#Want 0 to be 0/0, 1 to be 0/1 and 2 to be 1/1
+genos<-genos %>% mutate_all(funs(gsub("-1","./.",.)))
+genos<-genos %>% mutate_all(funs(gsub("0","0/0",.)))
+genos<-genos %>% mutate_all(funs(gsub("1","0/1",.)))
+genos<-genos %>% mutate_all(funs(gsub("2","1/1",.)))
+#A .vcf would have some columns
+
+cols<-data %>% select(X1,X2)
+
+##fileformat=VCFv4.3
+##fileDate=20201007@1142
+##source=radiator_v.1.1.7
+##INFO=<ID=NS,Number=1,Type=Integer,Description="Number of Samples With Data">
+##FORMAT=<ID=GT,Number=1,Type=String,Description="Genotype">
+#CHROM  POS     ID      REF     ALT     QUAL    FILTER  INFO    FORMAT INDS
+
+cols <- cols %>% rename('#CHROM'=X1, POS=X2) %>% mutate(ID="NA") %>% 
+  mutate(REF="A",ALT="C",QUAL=".",FILTER="PASS","INFO"="NS=181", FORMAT="GT")
+
+vcfbody<-cbind(cols,genos)
+
+write_tsv(vcfbody, "outputs/500/vcf.body")
+```
+
+`write_tsv(tester %>% select(`Sample name`), "outputs/500/names.txt", col_names = FALSE)`
+`write_tsv(tester %>% select(Sex), "outputs/500/sex.txt", col_names = FALSE)`
+
+`write.table(tester %>% select(`Sample name`, Sex), "outputs/500/sample_info.tsv", quote = TRUE, row.names = FALSE, sep="\t")`
+Made a header, then:    
+cat vcf.header vcf.body > vcf.vcf     
+bcftools reheader -s names.txt -o vcf-renamed.vcf vcf.vcf     
+bgzip vcf-renamed.vcf     
+tabix vcf-renamed.vcf.gz    
+cat lgs.txt  | while read line; do bcftools view -Ob -r $line vcf-renamed.vcf.gz > $line.bcf; done;     
+for f in *.bcf; do bcftools index $f; done;      
+
+`moved *bcf and *.bcf.csi to temp/`
+
+in lostruct:   
+
+./run_lostruct.R -i /Users/mac/github/dsm-omics/outputs/500/temp -t snp -s 100 -m 4 -I /Users/mac/github/dsm-omics/outputs/500/sample_info.tsv -j 500
+
+Rscript -e 'templater::render_template("summarize_run.Rmd",output="lostruct_results/type_snp_size_100_weights_none_jobid_500/run_summary.html",change.rootdir=TRUE)'
+
+Fails.   
+
+## Plotting
+```{r}
+mds<-read_csv("outputs/500/mds_coords.csv")
+#make tidy
+tidymds<-mds %>% gather(MDS, Value, 3:6)
+MDS1<-filter(tidymds, MDS=="MDS1") %>% rename(MDS1=MDS) %>% rename(Value1=Value)
+MDS2<-filter(tidymds, MDS=="MDS2") %>% rename(MDS2=MDS) %>% rename(Value2=Value)
+MDS3<-filter(tidymds, MDS=="MDS3") %>% rename(MDS3=MDS) %>% rename(Value3=Value)
+MDS4<-filter(tidymds, MDS=="MDS4") %>% rename(MDS4=MDS) %>% rename(Value4=Value)
+```
+
+```{r}
+p1<-MDS1 %>% mutate(Index=1:n())
+
+out <- boxplot.stats(p1$Value1)$out
+out_ind <- which(p1$Value1 %in% c(out))
+out_ind
+outliers<-p1[out_ind,]
+```
+
+```{r}
+chroms<-p1 %>% group_by(chrom) %>% mutate(Start=min(Index), Stop=max(Index)) %>% select(chrom,Start,Stop) %>% unique() %>% 
+  mutate(Position=round((Start+Stop)/2))
+
+#Make enough colors
+nb.cols <- nrow(chroms)
+mycolors <- colorRampPalette(brewer.pal(8, "Set1"))(nb.cols)
+
+
+#Hmm.. I should be able to include a bunch of rectangles to offset chroms
+ggplot(p1) +
+  geom_rect(data=chroms, aes(xmin=Start, xmax=Stop, ymin=min(p1$Value1), ymax=max(p1$Value1)), fill=mycolors, alpha=0.25) +
+  geom_point(data=p1, aes(x=Index, y=Value1, color=chrom), alpha=0.75, cex=0.5) +
+  geom_point(data=outliers, aes(x=Index, y=Value1), color="black", cex=0.5) +
+  theme_bw() +
+  scale_x_continuous(breaks=chroms$Position, labels=chroms$chrom) +
+  theme(axis.text.x = element_text(angle=45, hjust = 1, face="bold", size=6)) +
+  theme(legend.title = element_blank()) +
+  theme(panel.grid = element_blank()) +
+  theme(legend.position = "none") +
+  scale_color_manual(values=mycolors) +
+  ylab("MDS1") +
+  xlab("Chromosome")
+```
+
+
+```{r}
+p2<-MDS2 %>% mutate(Index=1:n())
+
+out2 <- boxplot.stats(p2$Value2)$out
+out_ind2 <- which(p2$Value2 %in% c(out2))
+out_ind2
+outliers2<-p2[out_ind2,]
+```
+
+```{r}
+chroms<-p2 %>% group_by(chrom) %>% mutate(Start=min(Index), Stop=max(Index)) %>% select(chrom,Start,Stop) %>% unique() %>% 
+  mutate(Position=round((Start+Stop)/2))
+
+#Make enough colors
+nb.cols <- nrow(chroms)
+mycolors <- colorRampPalette(brewer.pal(8, "Set1"))(nb.cols)
+
+
+#Hmm.. I should be able to include a bunch of rectangles to offset chroms
+ggplot(p2) +
+  geom_rect(data=chroms, aes(xmin=Start, xmax=Stop, ymin=min(p2$Value2), ymax=max(p2$Value2)), fill=mycolors, alpha=0.25) +
+  geom_point(data=p2, aes(x=Index, y=Value2, color=chrom), alpha=0.75, cex=0.5) +
+  geom_point(data=outliers2, aes(x=Index, y=Value2), color="black", cex=0.5) +
+  theme_bw() +
+  scale_x_continuous(breaks=chroms$Position, labels=chroms$chrom) +
+  theme(axis.text.x = element_text(angle=45, hjust = 1, face="bold", size=6)) +
+  theme(legend.title = element_blank()) +
+  theme(panel.grid = element_blank()) +
+  theme(legend.position = "none") +
+  scale_color_manual(values=mycolors) +
+  ylab("MDS2") +
+  xlab("Chromosome")
+```
+
+     
+```{r}
+p3<-MDS3 %>% mutate(Index=1:n())
+
+out3 <- boxplot.stats(p3$Value3)$out
+out_ind3 <- which(p3$Value3 %in% c(out3))
+out_ind3
+
+outliers3<-p3[out_ind3,]
+
+#places to put labels based on index
+chroms<-p3 %>% group_by(chrom) %>% mutate(Start=min(Index), Stop=max(Index)) %>% select(chrom,Start,Stop) %>% unique() %>% 
+  mutate(Position=round((Start+Stop)/2))
+
+#Make enough colors
+nb.cols <- nrow(chroms)
+mycolors <- colorRampPalette(brewer.pal(8, "Set1"))(nb.cols)
+
+
+ggplot(p3) +
+  geom_rect(data=chroms, aes(xmin=Start, xmax=Stop, ymin=min(p3$Value3), ymax=max(p3$Value3)), fill=mycolors, alpha=0.25) +
+  geom_point(data=p3, aes(x=Index, y=Value3, color=chrom), alpha=0.75, cex=0.5) +
+  geom_point(data=outliers3, aes(x=Index, y=Value3), color="black", cex=0.5) +
+  theme_bw() +
+  scale_x_continuous(breaks=chroms$Position, labels=chroms$chrom) +
+  theme(axis.text.x = element_text(angle=45, hjust = 1, face="bold", size=6)) +
+  theme(legend.title = element_blank()) +
+  theme(panel.grid = element_blank()) +
+  theme(legend.position = "none") +
+  scale_color_manual(values=mycolors) +
+  ylab("MDS3") +
+  xlab("Chromosome")
+```
+
+
+     
+     
+```{r}
+p4<-MDS4 %>% mutate(Index=1:n())
+
+out4 <- boxplot.stats(p4$Value4)$out
+out_ind4 <- which(p4$Value4 %in% c(out4))
+out_ind4
+
+outliers4<-p4[out_ind4,]
+
+#places to put labels based on index
+chroms<-p4 %>% group_by(chrom) %>% mutate(Start=min(Index), Stop=max(Index)) %>% select(chrom,Start,Stop) %>% unique() %>% 
+  mutate(Position=round((Start+Stop)/2))
+
+#Make enough colors
+nb.cols <- nrow(chroms)
+mycolors <- colorRampPalette(brewer.pal(8, "Set1"))(nb.cols)
+
+
+ggplot(p4) +
+  geom_rect(data=chroms, aes(xmin=Start, xmax=Stop, ymin=min(p4$Value4), ymax=max(p4$Value4)), fill=mycolors, alpha=0.25) +
+  geom_point(data=p4, aes(x=Index, y=Value4, color=chrom), alpha=0.75, cex=0.5) +
+  geom_point(data=outliers4, aes(x=Index, y=Value4), color="black", cex=0.5) +
+  theme_bw() +
+  scale_x_continuous(breaks=chroms$Position, labels=chroms$chrom) +
+  theme(axis.text.x = element_text(angle=45, hjust = 1, face="bold", size=6)) +
+  theme(legend.title = element_blank()) +
+  theme(panel.grid = element_blank()) +
+  theme(legend.position = "none") +
+  scale_color_manual(values=mycolors) +
+  ylab("MDS4") +
+  xlab("Chromosome")
+```
+
+## LD
+
+Previously with RADseq lg09 was the most interesting:
+```{sh, eval=FALSE}
+cat lgs.txt  | while read line; do bcftools view -Ov -r $line vcf-renamed.vcf.gz > $line.vcf; done; 
+```
+`(base) Macs-MacBook-Pro-2:500 mac$ plink --vcf lg09.vcf --r2 inter-chr --ld-window-r2 0.3 --out lg09.ldf --allow-extra-chr --double-id`   
+
+```{r}
+ld09<-read.delim("outputs/500/lg09.ldf.ld",sep="",stringsAsFactors=FALSE) %>% as_tibble() %>% arrange(R2) %>% 
+  filter(R2 >0.5)
+#~4.5 million obs if at r2 > 0.3
+#~2.5 million obs if at r2 > 0.4
+ggplot(ld09) +
+  geom_point(aes(x=BP_A, y=BP_B, color=R2), alpha=0.5) +
+  scale_color_gradient(low="khaki1", high="red") + 
+  theme_bw()
+```
+
+
+
+Creating script to automate. First, a loop to make ld measurements:
+
+```{sh, eval=FALSE}
+cat lgs.txt  | while read line; do plink --vcf $line.vcf --r2 inter-chr --ld-window-r2 0.3 --out $line.ldf --allow-extra-chr --double-id; done;
+```
+ 
+Note - next time use gnu parallel     
+
+## Lg09 PCA
+
+First, genome-wide PCA, err, or at least lg01.    
+bgzip lg01.vcf; bcftools index lg01.vcf.gz; 
+bcftools annotate --set-id ‘%CHROM:%POS:’ lg01.vcf.gz > lg01anno.vcf    
+
+```{r}
+vcf<-read.vcfR(file="outputs/500/lg01anno.vcf")
+genind<-vcfR2genind(vcf)
+X <- tab(genind, NA.method="mean")
+pca1 <- dudi.pca(X,scannf=FALSE,scale=FALSE)
+df<-as_tibble(pca1$li)
+```
+
+```{r}
+eigens<-as_tibble(pca1$eig) %>% rename(Eigen=value) %>% mutate(Porportion=Eigen/sum(Eigen)*100)
+ 
+ggplot(df, aes(x=Axis1, y=Axis2)) + 
+  xlab(paste0("PC1 ", round(eigens$Porportion[1],2),"%")) +
+  ylab(paste0("PC2 ", round(eigens$Porportion[2],2),"%")) +
+  geom_point(alpha=0.9) +
+  theme_bw() +
+  theme(panel.grid = element_blank())
+```
+
+```{r}
+outliers4 %>% filter(chrom=="lg09")
+```
+Pulling windows, +1 for header
+
+```{sh}
+awk 'NR==433' outputs/500/lg09.regions.csv
+awk 'NR==597' outputs/500/lg09.regions.csv
+
+awk 'NR==602' outputs/500/lg09.regions.csv
+awk 'NR==731' outputs/500/lg09.regions.csv
+```
+
+```{sh}
+awk 'NR==702' outputs/500/lg09.regions.csv
+awk 'NR==731' outputs/500/lg09.regions.csv
+```
+
+Previously I examined 13mbp-16mpb
+
+bgzip lg09.vcf; bcftools index lg09.vcf.gz; 
+bcftools view -r lg09:16227393-21588592 lg09.vcf.gz > lg09-sub.vcf;   
+bcftools annotate --set-id ‘%CHROM:%POS:’ lg09-sub.vcf > lg09-sub-anno.vcf    
+
+```{r}
+vcf<-read.vcfR(file="outputs/500/lg09-sub-anno.vcf")
+genind<-vcfR2genind(vcf)
+X <- tab(genind, NA.method="mean")
+pca1 <- dudi.pca(X,scannf=FALSE,scale=FALSE)
+df<-as_tibble(pca1$li)
+
+eigens<-as_tibble(pca1$eig) %>% rename(Eigen=value) %>% mutate(Porportion=Eigen/sum(Eigen)*100)
+
+ggplot(df, aes(x=Axis1, y=Axis2)) + 
+  xlab(paste0("PC1 ", round(eigens$Porportion[1],2),"%")) +
+  ylab(paste0("PC2 ", round(eigens$Porportion[2],2),"%")) +
+  geom_point(alpha=0.9) +
+  theme_bw() +
+  theme(panel.grid = element_blank())
+
+```
+
+
+## Lg08 PCA
+```{r}
+outliers3 %>% filter(chrom=="lg08")
+```
+
++1 for header:
+```{sh}
+awk 'NR==288' outputs/500/lg08.regions.csv
+awk 'NR==339' outputs/500/lg08.regions.csv
+```
+
+bgzip lg08.vcf; bcftools index lg08.vcf.gz; 
+bcftools view -r lg08:10323523-12649810 lg08.vcf.gz > lg08-sub.vcf;   
+bcftools annotate --set-id ‘%CHROM:%POS:’ lg08-sub.vcf > lg08-sub-anno.vcf   
+
+```{r}
+vcf<-read.vcfR(file="outputs/500/lg08-sub-anno.vcf")
+genind<-vcfR2genind(vcf)
+X <- tab(genind, NA.method="mean")
+pca1 <- dudi.pca(X,scannf=FALSE,scale=FALSE)
+df<-as_tibble(pca1$li)
+
+eigens<-as_tibble(pca1$eig) %>% rename(Eigen=value) %>% mutate(Porportion=Eigen/sum(Eigen)*100)
+
+ggplot(df, aes(x=Axis1, y=Axis2)) + 
+  xlab(paste0("PC1 ", round(eigens$Porportion[1],2),"%")) +
+  ylab(paste0("PC2 ", round(eigens$Porportion[2],2),"%")) +
+  geom_point(alpha=0.9) +
+  theme_bw() +
+  theme(panel.grid = element_blank())
+```

@@ -1,0 +1,183 @@
+---
+title: "504-lg09"
+author: "Mac Campbell"
+date: "2/2/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+```
+
+```{r}
+library(gplots)
+library(data.table)
+library(tidyverse)
+library(vcfR)
+library(adegenet)
+library(poppr)
+library(hierfstat)
+library(viridis)
+```
+
+
+Individuals
+```{r}
+bamlist<-read_tsv("bamlists/test92.bamlist", col_names = c("Path"))
+bamlist$File<-gsub("/home/maccamp/dsm-omics/data/SOMM516/|/home/maccamp/dsm-omics/data/SOMM517/","",bamlist$Path)
+bamlist$Sample<-gsub("_R1.sort.flt.bam","",bamlist$File)
+bamlist
+```
+
+
+Data    
+```{r}
+ vcf<-read.vcfR(file="outputs/500/lg09-16335396-21588417.vcf")
+#vcf<-read.vcfR(file="outputs/500/lg09-sub-anno.vcf.gz")
+genind<-vcfR2genind(vcf)
+```
+
+```{r}
+genos<-read_tsv("outputs/500/localpca.geno.gz", col_names = c("Chrom","Pos",bamlist$Sample)) 
+genos<-genos %>% filter(Chrom=="lg09") %>% filter(Pos > 16335396) %>% filter(Pos < 21588417)
+```
+
+```{r}
+genosh<-genos %>% select(Chrom, Pos, `300662`, `400281`,`900492`,`900622`)
+
+diagnostics<-genosh %>% filter(`300662`==2 & `400281`==2 & `900492`==2 & `900622`==2)
+
+genosd<-filter(genos, Pos %in% diagnostics$Pos)
+```
+
+Let's find individuals with the most 0's, 2's and 1's.     
+```{r}
+meltd<-data.table::melt(genosd, id.vars = c("Chrom","Pos"), variable.name = "Sample" ) %>% as_tibble()
+```
+
+Homozygous inverted?
+```{r}
+g2<-meltd %>% group_by(Sample) %>% filter(value==2) %>% summarize(Count2=n()) %>% arrange(-Count2)
+```
+
+Hets?
+```{r}
+g1<-meltd %>% group_by(Sample) %>% filter(value==1) %>% summarize(Count1=n()) %>% arrange(-Count1)
+``` 
+
+```{r}
+g0<-meltd %>% group_by(Sample) %>% filter(value==0) %>% summarize(Count0=n()) %>% arrange(-Count0)
+```
+
+```{r}
+counts<-select(bamlist, Sample) %>% left_join(g0) %>% left_join(g1) %>% left_join(g2)
+counts<-counts %>% mutate_if(is.numeric, ~replace(., is.na(.), 0))
+```
+
+```{r}
+guesses<-counts %>% mutate(Type=ifelse(Count0 > Count1 & Count0 > Count2, "Homozygous Ancestral", ifelse(Count1 > Count0 & Count1 > Count2, "Heterozygous", ifelse(Count2 > Count0 & Count2 > Count1, "Homozygous Inverted", "NoCall"))))
+```
+
+### PCA
+
+
+```{r}
+genind@pop<-as.factor(bamlist$Sample)
+X <- tab(genind, NA.method="mean")
+pca1 <- dudi.pca(X,scannf=FALSE,scale=FALSE)
+df<-as_tibble(pca1$li)
+df$Sample<-bamlist$Sample
+eigens<-as_tibble(pca1$eig) %>% dplyr::rename(Eigen=value) %>% mutate(Porportion=Eigen/sum(Eigen)*100)
+```
+
+```{r}
+df2 <- df %>% left_join(guesses)
+df2$Type<-factor(df2$Type, levels=c("Homozygous Inverted", "Heterozygous", "Homozygous Ancestral"))
+
+ggplot(df2, aes(x=Axis1, y=Axis2, color=Type)) + 
+  xlab(paste0("PC1 ", round(eigens$Porportion[1],2),"%")) +
+  ylab(paste0("PC2 ", round(eigens$Porportion[2],2),"%")) +
+  geom_point(alpha=0.9) +
+  theme_bw() +
+  theme(panel.grid = element_blank())
+
+ggsave("outputs/504/lg09-zygosity-pca.jpg")
+
+```
+
+```{r}
+ggplot(df2, aes(x=Axis1, y=Axis1, color=Type)) + 
+  geom_point(alpha=0.9) 
+```
+
+
+## Get individuals from different regions.
+
+```{r}
+homs<-df2 %>% filter(Type=="Homozygous Inverted")
+gh<-genind[genind@pop %in% homs$Sample]
+```
+
+testing     
+```{r}
+ghh<-basic.stats(genind2hierfstat(gh))
+hodf<-ghh$perloc$Ho %>% as_tibble() %>% rename(Ho=value) %>% mutate(Type="Homozygous Inverted")
+ggplot(hodf)+geom_boxplot(aes(y=Ho, x=Type))
+```
+
+```{r}
+hets<-df2 %>% filter(Type=="Heterozygous")
+ghets<-genind[genind@pop %in% hets$Sample]
+ghetsh<-basic.stats(genind2hierfstat(ghets))
+hetdf<-ghetsh$perloc$Ho %>% as_tibble() %>% rename(Ho=value) %>% mutate(Type="Heterozygous")
+ggplot(hetdf)+geom_boxplot(aes(y=Ho, x=Type))
+```
+
+```{r}
+anc<-df2 %>% filter(Type=="Homozygous Ancestral")
+ganc<-genind[genind@pop %in% anc$Sample]
+ganch<-basic.stats(genind2hierfstat(ganc))
+ancdf<-ganch$perloc$Ho %>% as_tibble() %>% rename(Ho=value) %>% mutate(Type="Homozygous Ancestral")
+ggplot(ancdf)+geom_boxplot(aes(y=Ho, x=Type))
+```
+
+
+```{r}
+tdf<-bind_rows(hodf, hetdf, ancdf)
+tdf$Type<-factor(tdf$Type, levels=c("Homozygous Inverted","Heterozygous","Homozygous Ancestral"))
+```
+
+```{r}
+tdf %>% group_by(Type) %>% summarize(Mean=mean(Ho))
+```
+
+```{r}
+ggplot(tdf) +
+  geom_boxplot(aes(y=Ho, x=Type, fill=Type)) +
+  theme_bw() +
+  theme(panel.grid = element_blank())
+
+ggsave("outputs/504/lg09-hobs.jpeg")
+```
+
+## Heatmap
+
+```{r}
+gs<-filter(genos, Pos > 20277359) %>% filter(Pos < 21718518)
+mat<-as.matrix(gs[3:94])
+mat[mat==-1]<-0
+rownames(mat)<-gs$Pos
+tmat<-t(mat)
+```
+
+```{r, eval=FALSE}
+pdf("outputs/504/lg09-heatmap.pdf", width=20, height=8)
+heatmap.2(tmat, labCol = "", 
+          trace="none",
+          key=FALSE, dendrogram=c("row"), srtCol=45, margins = c(10,5), na.color=viridis(1),
+          col=viridis,  Colv = FALSE,
+          hclustfun = function(x) hclust(x,method = 'ward.D')
+          )
+
+dev.off()
+```

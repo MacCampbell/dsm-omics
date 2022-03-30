@@ -11,6 +11,8 @@ knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
 
 ```{r}
 library(tidyverse)
+library(data.table)
+library(stringr)
 library(ggrepel)
 library(RcppCNPy)
 ```
@@ -65,11 +67,26 @@ comb<-select(comb, -CovFile)
 
 
 ```{r}
-meta<-left_join(df, comb) %>% filter(Coverage !="NA") %>% mutate(DI=ifelse(str_detect(`Sample name`, '^h|^H'), "HighDI","LowDI")) 
+meta<-left_join(df, comb) %>% filter(Coverage !="NA") %>% mutate(DI=ifelse(str_detect(`Sample name`, '^h|^H'), "HighDI",
+                                                                           ifelse(str_detect(`Sample name`, '^l|^L'), "LowDI", "Epi")))
 nrow(meta)
 mean(meta$Coverage)
 write_tsv(meta, "meta/meta.tsv")
 ```
+
+Removing epigenetics fish for summarizing crosses   
+```{r}
+sum<-meta %>% filter(DI != "Epi") %>% separate(`Sample name`, into=c("CrossType","Tank","Number"), remove=FALSE, sep="_")
+sum$Tank<-toupper(sum$Tank)
+sum$CrossType<-toupper(sum$CrossType)
+
+sum %>% select(`Sample name`, CrossType, Tank, Number) %>% group_by(CrossType, Tank) %>% summarize(Count=n())
+
+sum %>% select(`Sample name`, CrossType, Tank, Number) %>% group_by(CrossType) %>% summarize(Count=n())
+
+write_csv(sum, "meta/meta-excl-epi.csv")
+```
+
 ```{r}
 meta %>% group_by(`library number`) %>%
   summarize(AvgCoverage=mean(Coverage))

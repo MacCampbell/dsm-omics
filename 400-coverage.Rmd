@@ -65,18 +65,16 @@ write_tsv(pcseqs %>% select(String), col_names = FALSE, file = "bamlists/test96.
  (not to think about adding -postCutoff)     
  
 ```{sh, eval=FALSE} 
-srun -p bigmemm --mem=32G -t 03:00:00 python $HOME/pcangsd/pcangsd.py -beagle outputs/400/lg01-pca.beagle.gz -o outputs/400/lg01 -threads 10 > outputs/400/chroms.stdout 2>outputs/400/chroms.stderr &
+srun -p bigmemm --mem=32G -t 03:00:00 python $HOME/pcangsd/pcangsd.py -beagle outputs/400/lg01-pca.beagle.gz -o outputs/400/lg01-75 -threads 10 > outputs/400/chroms.stdout 2>outputs/400/chroms.stderr &
 ```
 
-Read 96 samples and 46576 sites
+Read 96 samples and 46576 sites with minind = 50%    
+Read 96 samples and 44946 sites with minind = 75%
+Number of sites after MAF filtering (0.05): 44945
 
-Estimating population allele frequencies
-EM (MAF) converged at iteration: 11
-
-Number of sites after MAF filtering (0.05): 4657    
 
 ```{r}
-cov<-read_delim("outputs/400/lg01.cov", col_names=FALSE, delim=" ") %>% as.matrix()
+cov<-read_delim("outputs/400/lg01-75.cov", col_names=FALSE, delim=" ") %>% as.matrix()
 ```
 
 
@@ -135,12 +133,76 @@ cumvar<-cumsum(eig$values)/sum(eig$values)
 
 
 ggplot(pp_meta2) +
-  geom_point(aes(x=val_x, y=val_y, shape=`library number`, color=DI)) +
+  geom_point(aes(x=val_x, y=val_y, shape=`library number`, color=Coverage)) +
   coord_fixed() +
   facet_grid (PCx ~ PCy)
 
 ```
 
+```{r}
+ggplot(pp_meta2) +
+  geom_point(aes(x=val_x, y=val_y, shape=`library number`, color=DI)) +
+  coord_fixed() +
+  facet_grid (PCx ~ PCy)
+```
 
--postCutoff set to 0.9 and thresh to 0.75
+Checking for kin again,
 
+```{sh, eval=FALSE}
+srun -p bigmemm --mem=32G -t 03:00:00 python $HOME/pcangsd/pcangsd.py -beagle outputs/400/lg01-pca.beagle.gz -kinship -o outputs/400/test96.kinship -threads 10 > outputs/400/pca.stdout 2> outputs/400/pca.stderr &
+
+srun -p bigmemm --mem=32G -t 03:00:00 python $HOME/pcangsd/pcangsd.py -beagle outputs/400/lg01-pca.beagle.gz -relate outputs/400/test96.kinship.kinship.npy -o outputs/400/test96-kinremoved -threads 10 > outputs/400/pca-kin.stdout 2> outputs/400/pca-kin.stderr &
+```
+
+Keeping 90 individuals after filtering (removing 6)
+Boolean vector of unrelated individuals saved as outputs/400/test96-kinremoved.unrelated.npy (Binary)
+Parsing Beagle file
+Read 90 samples and 44946 sites
+
+```{r}
+cov<-read_delim("outputs/400/test96-kinremoved.cov", col_names=FALSE, delim=" ") %>% as.matrix()
+```
+
+
+```{r}
+ddf<-sequence(90) %>% as_tibble() %>% rename(`Sample name` = value)
+```
+
+```{r}
+pca <- covar2pcs(ddf$`Sample name`, cov)
+
+pca_long <- pca$PCs %>%
+  tidyr::gather(., key = "PC", "val", -sample)
+
+# then expand a grid of the possible comparisons (ordered)
+expg <- expand.grid(sample = pca$PCs$sample,
+                    PCx = sprintf("PC-%02d", 1:6),
+                    PCy = sprintf("PC-%02d", 1:6),
+                    stringsAsFactors = FALSE) %>%
+  tibble::as_tibble()
+
+# then left join the pca results onto that
+pca_pairs <- dplyr::left_join(expg, pca_long, by = c("sample", "PCx" = "PC")) %>%
+  dplyr::rename(val_x = val) %>%
+  dplyr::left_join(pca_long, by = c("sample", "PCy" = "PC")) %>%
+  dplyr::rename(val_y = val)
+
+pp_meta <- pca_pairs %>%   # just keep the first 6 PCs around
+  left_join(., ddf, by = c("sample" = "Sample name")) 
+
+npc <- 3
+pp_meta2 <- pp_meta %>%
+  filter( (PCx %in% sprintf("PC-%02d", 1:npc)) & 
+            (PCy %in% sprintf("PC-%02d", 1:npc)) )
+
+eig <- eigen(cov, symm = TRUE)
+var<-eig$values/sum(eig$values)
+cumvar<-cumsum(eig$values)/sum(eig$values)
+
+
+ggplot(pp_meta2) +
+  geom_point(aes(x=val_x, y=val_y)) +
+  coord_fixed() +
+  facet_grid (PCx ~ PCy)
+
+```
