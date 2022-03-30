@@ -5,7 +5,7 @@
 # bash $HOME/shernook/201-parallelize-analyses.sh $HOME/shernook/bamlists/bamlist56.bamlist $HOME/shernook/meta/test.chroms
 
 # For smelt
-# bash $HOME/dsm-omics/203-parallelize-analyses.sh $HOME/bamlists/bamlist96.bamlist $HOME/dsm-omics/meta/1mbseqs.txt
+# bash $HOME/dsm-omics/203-parallelize-pca.sh $HOME/dsm-omics/bamlists/test96.bamlist $HOME/dsm-omics/meta/1mbseqs.txt
 
 
 bamlist=$1

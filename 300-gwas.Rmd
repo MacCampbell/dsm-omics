@@ -14,12 +14,21 @@ library(tidyverse)
 library(data.table)
 ```
 
+Redoing 3/30/2022 with ncbi-align
+
 ## Getting a list of seqs
-`cat  genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa.fai | awk '$2 > 100000' | cut -f 1 > genomes/hypomesus-20210204/seqs100k.txt`
+
+Using 1mb seqs ``cat ~/genomes/GCF021917145.1/GCF_021917145.1_fHypTra1_genomic.fna.fai  | awk '$2 > 1000000 {print ;}' | cut -f 1 > 1mbseqs.txt`      
 
 
 
 ## Get some idea of what we got
+
+
+Meta   
+```{r}
+df<-read_csv("sequenced-fish/samples-barcodes-01042022.csv")
+```
 
 ```{r}
 df<-read_csv("sequenced-fish/samples-barcodes-01042022.csv") %>% filter(str_detect(`Sample name`, '^\\d+')) %>%
@@ -30,13 +39,6 @@ df<-read_csv("sequenced-fish/samples-barcodes-01042022.csv") %>% filter(str_dete
 
 first two digits is a generation number, the three in the middle is a cross number, and the last number is for male/ female (1 or 2).
 
-Bring in coverage:
-
-
-Meta   
-```{r}
-df<-read_csv("sequenced-fish/samples-barcodes-01042022.csv")
-```
 
 Bring in coverage:
 
@@ -54,29 +56,7 @@ comb<-select(comb, -CovFile)
 
 
 ```{r}
-meta<-left_join(df, comb) %>% filter(Coverage !="NA") %>% mutate(DI=ifelse(str_detect(`Sample name`, '^h|^H'), "HighDI","LowDI")) 
-nrow(meta)
-mean(meta$Coverage)
-write_tsv(meta, "meta/dsm-meta.tsv")
-```    
-
-```{r}
-meta %>% group_by(`library number`) %>%
-  summarize(AvgCoverage=mean(Coverage))
-```
-
-```{r}
-ggplot(meta) +
-  geom_histogram(aes(Coverage, fill=`library number`)) +
-  theme_bw() +
-  theme(panel.grid=element_blank()) +
-  ylab("Count") +
-  theme(axis.title = element_text(face="bold")) +
-  scale_y_continuous(breaks=c(0,5,10,15,20,25))
-```
-
-```{r}
-files<-list.files(path="outputs/300", pattern="*.cov", full.names=TRUE)
+files<-list.files(path="outputs/600", pattern="*.cov", full.names=TRUE)
 list<-lapply(files, read_tsv, col_names=FALSE) 
 names<-lapply(files, basename)
 all<-mapply(c, list, names, SIMPLIFY = FALSE)
@@ -108,20 +88,27 @@ ggplot(df) +
 Creating a tester bamlit
 
 ```{r}
-tester<-df %>% filter(Coverage > 10) %>% filter(Coverage < 30) %>% mutate(String=paste0("/home/maccamp/dsm-omics/data/",`library number`,"/",SeqFile))
+tester<-df %>% filter(Coverage > mean(df$Coverage) - sd(df$Coverage)) %>%
+  filter(Coverage < mean(df$Coverage) + sd(df$Coverage)) %>%
+  mutate(String=paste0("/home/maccamp/dsm-omics/data/",`library number`,"/",SeqFile))
+  
+  
 tester %>% group_by(Sex) %>% summarize(Count=n())
 ```
 
 ```{r}
+nrow(tester)
 mean(tester$Coverage)
 ```
     
 ```{r}
-write_tsv(tester %>% select(String), col_names = FALSE, file = "bamlists/test92.bamlist")
-write_tsv(tester %>% select(Pheno), col_names=FALSE, file="bamlists/test92.pheno")
+write_tsv(tester %>% select(String), col_names = FALSE, file = "bamlists/test80.bamlist")
+write_tsv(tester %>% select(Pheno), col_names=FALSE, file="bamlists/test80.pheno")
 ```
 
-Running PCA in outputs/303
+Running 300.1-do-asso.sh
+
+PCA in outputs/303? Not done yet
 
 
 ## Results of GWAS

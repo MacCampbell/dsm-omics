@@ -6,6 +6,9 @@
 
 # bash $HOME/dsm-omics/301-do-asso.sh $HOME/dsm-omics/bamlists/test92.bamlist $HOME/dsm-omics/meta/seqs100k.txt $HOME/dsm-omics/bamlists/test92.pheno 
 
+
+# bash $HOME/dsm-omics/301-do-asso.sh $HOME/dsm-omics/bamlists/test80.bamlist  $HOME/dsm-omics/meta/1mbseqs.txt $HOME/dsm-omics/bamlists/test80.pheno 
+
 bamlist=$1
 list=$2
 phenos=$3
