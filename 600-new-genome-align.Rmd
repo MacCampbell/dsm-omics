@@ -136,4 +136,10 @@ write_tsv(pcseqs %>% select(String), col_names = FALSE, file = "bamlists/test96.
 ```
      
      
-Running  203-parallelize-pca.sh in outputs/600
+Running  203-parallelize-pca.sh in outputs/601
+
+`cat ~/genomes/GCF021917145.1/GCF_021917145.1_fHypTra1_genomic.fna.fai  | awk '$2 > 1000000 {print ;}' | cut -f 1 > 1mbseqs.txt`     
+
+`bash $HOME/dsm-omics/203-parallelize-analyses.sh $HOME/bamlists/bamlist96.bamlist $HOME/dsm-omics/meta/1mbseqs.txt`     
+
+

@@ -4,6 +4,9 @@
 # Feeding a list of chroms meta/test.chroms
 # bash $HOME/shernook/201-parallelize-analyses.sh $HOME/shernook/bamlists/bamlist56.bamlist $HOME/shernook/meta/test.chroms
 
+# For smelt
+# bash $HOME/dsm-omics/203-parallelize-analyses.sh $HOME/bamlists/bamlist96.bamlist $HOME/dsm-omics/meta/1mbseqs.txt
+
 
 bamlist=$1
 list=$2
