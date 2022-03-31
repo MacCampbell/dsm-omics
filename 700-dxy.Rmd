@@ -1,0 +1,157 @@
+---
+title: "700-dxy"
+author: "Mac Campbell"
+date: "3/31/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+```
+
+```{r}
+library(tidyverse)
+```
+
+## dxy
+
+This looks to be a good place to start.
+
+Dummy examples.
+
+```{r}
+dummy1<-read_tsv("dxy/dummy1.txt")
+dummy2<-read_tsv("dxy/dummy2.txt")
+
+dummy1
+dummy2
+```
+script uses "knownEM"   for dxy calculation, 
+`Explicitly: 0.5 * (1-0.5) + (0.5 * (1-0.5)) = .25 + .25 = 0.5`
+`Explicitly: (0.4 * (1-0.4) + (0.4 * (1-0.4)) = .24 + .24 =0.48`
+
+```{sh, eval=FALSE}
+./getDxy.pl --pop1maf dummy1.txt --pop2maf dummy1.txt --minInd 5 > dummy1-dummy1.tsv #same allele freqs
+./getDxy.pl --pop1maf dummy1.txt --pop2maf dummy2.txt --minInd 5 > dummy1-dummy2.tsv #opposite allele freqs
+```
+
+```{r}
+d1d1<-read_tsv("dxy/dummy1-dummy1.tsv")
+d1d2<-read_tsv("dxy/dummy1-dummy2.tsv")
+```
+
+
+```{r}
+ggplot(d1d1) +
+  geom_point(aes(x=Dxy, y=position)) +
+  theme_classic() +
+  ylab("Allele Frequencies") +
+  ggtitle("Dxy when allele frequencies are the same\n") +
+  theme(plot.title = element_text(hjust=0.5))
+```
+
+Maximal dxy is 0.5 when the allele frequencies are 0.5, maximal diversity?
+
+```{r}
+d1d2df<-d1d2 %>% mutate(position2=1-position) %>% select(chromo,Dxy,position,position2) %>% 
+  rename(Freq1=position, Freq2=position2) %>% gather(key=Position, value=AlleleFreq, 3:4)
+```
+
+```{r}
+ggplot(d1d2df, aes(x=Dxy, y=AlleleFreq, color=AlleleFreq)) +
+  geom_point() +
+  theme_classic() +
+  ylab("Allele Frequencies") +
+  ggtitle("Dxy when allele frequencies are oppositional\n") +
+  theme(plot.title = element_text(hjust=0.5)) +
+  facet_grid(Position ~ .)
+```
+
+dxy is maximal when major allele freqs are 1,0 or 0,1 and is = 1.
+
+## Steps
+
+Matt seyz:    
+_1_ Use ANGSD to score SNPs, p-value cutoff as normal, minQ, minmapQ, etc. etc.     
+_2_ Make a text file with the IDs of the SNPs you want to compare between populations. I scored SNPs separately for Sashin steelhead and rainbows in step one because I assumed the rainbows to have fuck all genetic variation and I didn’t want alleles that were fixed in the rainbows and polymorphic in the steelhead to get filtered out because of -minInd or -minMaf filtering. If you’ve already done this, i.e., you’ve combined all your delta smelts together into one ANGSD file then you can forgo this step.     
+_3_ Here’s the ANGSD command I used: ./angsd -b sashin_RT_bams -ref RBT_fullGenome.fasta -out rainbows_3 -GL 1 -minQ 20 -minMapQ 20 -doMajorMinor 1 -doMaf 3 -minMaf 0.05 -sites ~/Downloads/angsd/misc/intersect.txt -nThreads 16 
+_4_ I repeated this for the steelhead so I had two maf.gz files one for steelhead and one for rainbows. I then gunziped the maf files.
+_5_ Run through perl…might be an idea to run “head name of maf file” first so you can make sure all the necessary colums are there. It should be chromo position major minor ref knownEM unknownEM nInd ./per getDxy.pl –pop1maf ~/Downloads/angsd/steelhead3.mafs –pop2maf ~/Downloads/angsd/rainbows3.mafs –minInd 12 > dxy_sashin_out.txt  
+ 
+A tutorial exists: https://github.com/mfumagalli/ngsTools/blob/master/TUTORIAL.md    
+
+_1_ We first compute the sample allele frequency likelihoods using ANGSD.    
+_2_ Need to get the subset of overlapping sites (unfiltered for both populations)     
+_3_ We then compute the sample allele frequency likelihoods only for the overlapping (valid) sites.    
+
+_1_ Getting bamlists together.
+
+```{r}
+kept96<-read_tsv("meta/kept96.tsv")
+
+kept96 %>% group_by(CrossType) %>% summarize(Count=n())
+```
+
+91 samples split between HDI and LDI.
+
+```{r}
+write_tsv(kept96 %>% filter(CrossType=="HDI") %>% select(String), col_names = FALSE, file = "bamlists/testHDI.bamlist")
+write_tsv(kept96 %>% filter(CrossType=="LDI") %>% select(String), col_names = FALSE, file = "bamlists/testLDI.bamlist")
+```
+
+using one chrom to test 
+
+_1_ Getting SNPS     
+
+```{sh, eval=FALSE}
+sbatch -p bigmemm -t 12:00:00 --mem=32G --nodes=1 $HOME/angsd/angsd -nThreads 6 \
+  -b bamlists/testHDI.bamlist -ref $HOME/genomes/GCF021917145.1/GCF_021917145.1_fHypTra1_genomic.fna \
+  -uniqueOnly 1 -remove_bads 1 -only_proper_pairs 1 \
+  -trim 0 -C 50 -baq 1 \
+  -minMapQ 20 -minQ 20 -minInd 38 -setMinDepth 5 -setMaxDepth 100 -doCounts 1 \
+  -GL 1 -doSaf 1 \
+  -r NC_061060.1 -out ouputs/700/testHDI > outputs/700/testHDI.stdout 2> outputs/700/testHDI.stderr &
+
+sbatch -p bigmemm -t 12:00:00 --mem=32G --nodes=1 $HOME/angsd/angsd -nThreads 6 \
+  -b bamlists/testLDI.bamlist -ref $HOME/genomes/GCF021917145.1/GCF_021917145.1_fHypTra1_genomic.fna \
+  -uniqueOnly 1 -remove_bads 1 -only_proper_pairs 1 \
+  -trim 0 -C 50 -baq 1 \
+  -minMapQ 20 -minQ 20 -minInd 44 -setMinDepth 5 -setMaxDepth 100 -doCounts 1 \
+  -GL 1 -doSaf 1 \
+  -r NC_061060.1 -out ouputs/700/testLDI > outputs/700/testLDI.stdout 2> outputs/700/testLDI.stderr &
+```
+
+_2_ Compute intersect
+
+```{sh, eval=FALSE}
+$HOME/angsd/realSFS print outputs/700/HDI.saf.idx outputs/700/LDI.saf.idx | cut -f 1-2 > outputs/700/intersect.txt
+
+$HOME/angsd/angsd sites index outputs/700/intersect.txt
+
+NSITES=`wc -l outputs/700/intersect.txt | cut -f 1 -d " "`
+echo $NSITES
+```
+
+_3_ Compute the sample allele frequency likelihoods only for the overlapping (valid) sites.
+
+```{sh, eval=FALSE}
+sbatch -p bigmemm -t 12:00:00 --mem=32G --nodes=1 $HOME/angsd/angsd -nThreads 6 \
+  -b bamlists/testHDI.bamlist -ref $HOME/genomes/GCF021917145.1/GCF_021917145.1_fHypTra1_genomic.fna \
+  -uniqueOnly 1 -remove_bads 1 -only_proper_pairs 1 \
+  -trim 0 -C 50 -baq 1 \
+  -minMapQ 20 -minQ 20 -minInd 38 -setMinDepth 5 -setMaxDepth 100 -doCounts 1 \
+  -GL 1 -doSaf 1 \
+  -r NC_061060.1 -sites outputs/700/intesect.txt -out ouputs/700/testHDI > outputs/700/testHDI.stdout 2> outputs/700/testHDI.stderr &
+
+sbatch -p bigmemm -t 12:00:00 --mem=32G --nodes=1 $HOME/angsd/angsd -nThreads 6 \
+  -b bamlists/testLDI.bamlist -ref $HOME/genomes/GCF021917145.1/GCF_021917145.1_fHypTra1_genomic.fna \
+  -uniqueOnly 1 -remove_bads 1 -only_proper_pairs 1 \
+  -trim 0 -C 50 -baq 1 \
+  -minMapQ 20 -minQ 20 -minInd 44 -setMinDepth 5 -setMaxDepth 100 -doCounts 1 \
+  -GL 1 -doSaf 1 \
+  -r NC_061060.1 -sites outputs/700/intesect.txt -out ouputs/700/testLDI > outputs/700/testLDI.stdout 2> outputs/700/testLDI.stderr &
+```
+
+
+
+
