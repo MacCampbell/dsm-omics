@@ -1,0 +1,12 @@
+#chromo	position	major	minor	ref	knownEM	unknownEM	nInd
+1	0	C	T	C	0.3	0.3	10
+1	.1	C	T	C	0.3	0.3	10
+1	.2	C	T	C	0.3	0.3	10
+1	.3	C	T	C	0.3	0.3	10
+1	.4	C	T	C	0.3	0.3	10
+1	.5	C	T	C	0.3	0.3	10
+1	.6	C	T	C	0.3	0.3	10
+1	.7	C	T	C	0.3	0.3	10
+1	.8	C	T	C	0.3	0.3	10
+1	.9	C	T	C	0.3	0.3	10
+1	1	C	T	C	0.3	0.3	10

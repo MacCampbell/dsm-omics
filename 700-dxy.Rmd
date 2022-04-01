@@ -22,9 +22,11 @@ Dummy examples.
 ```{r}
 dummy1<-read_tsv("dxy/dummy1.txt")
 dummy2<-read_tsv("dxy/dummy2.txt")
+dummy3<-read_tsv("dxy/dummy3.txt")
 
 dummy1
 dummy2
+dummy3
 ```
 script uses "knownEM"   for dxy calculation, 
 `Explicitly: 0.5 * (1-0.5) + (0.5 * (1-0.5)) = .25 + .25 = 0.5`
@@ -33,11 +35,18 @@ script uses "knownEM"   for dxy calculation,
 ```{sh, eval=FALSE}
 ./getDxy.pl --pop1maf dummy1.txt --pop2maf dummy1.txt --minInd 5 > dummy1-dummy1.tsv #same allele freqs
 ./getDxy.pl --pop1maf dummy1.txt --pop2maf dummy2.txt --minInd 5 > dummy1-dummy2.tsv #opposite allele freqs
+./getDxy.pl --pop1maf dummy1.txt --pop2maf dummy3.txt --minInd 5 > dummy1-dummy3.tsv # allele freqs constant at 0.5 in dummy3
+
 ```
 
 ```{r}
 d1d1<-read_tsv("dxy/dummy1-dummy1.tsv")
 d1d2<-read_tsv("dxy/dummy1-dummy2.tsv")
+d1d3<-read_tsv("dxy/dummy1-dummy3.tsv")
+d1d4<-read_tsv("dxy/dummy1-dummy4.tsv")
+d1d5<-read_tsv("dxy/dummy1-dummy5.tsv")
+d1d6<-read_tsv("dxy/dummy1-dummy6.tsv")
+
 ```
 
 
@@ -68,6 +77,29 @@ ggplot(d1d2df, aes(x=Dxy, y=AlleleFreq, color=AlleleFreq)) +
 ```
 
 dxy is maximal when major allele freqs are 1,0 or 0,1 and is = 1.
+
+
+Varying allele freqs
+
+```{r}
+d3<-d1d3 %>% mutate(AF=0.5)
+d4<-d1d4 %>% mutate(AF=0.4)
+d5<-d1d5 %>% mutate(AF=0.3)
+d6<-d1d6 %>% mutate(AF=0.6)
+
+combo<-bind_rows(d3,d4,d5,d6)
+combo$AF<-as.factor(combo$AF)
+```
+
+```{r}
+ggplot(combo) +
+  geom_point(aes(x=position, y=Dxy, color=AF)) +
+  xlab("AF pop 2") +
+  theme_bw()
+
+```
+
+If AF is = 0.5, Dxy = 0.5, if < 0.5 or > 0.5 can get Dxy to change
 
 ## Steps
 
@@ -154,4 +186,8 @@ sbatch -p bigmemm -t 12:00:00 --mem=32G --nodes=1 $HOME/angsd/angsd -nThreads 6 
 
 
 
+
+Some more ideas:
+
+Compute LD decay, sliding window Fsts. Phase with beagle or shapeit, haplotype statistics within HDI and between HDI and LDI with rehh?
 
