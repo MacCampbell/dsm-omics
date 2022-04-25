@@ -21,7 +21,7 @@ Dropping unmatched data
 ## Aligning to the new genome
 in each subdir
 
-bash ../../201-align-and-sort.sh sequences.txt $HOME/genomes/GCF021917145.1/GCF_021917145.1_fHypTra1_genomic.fna
+bash ../../201-align-and-sort.sh sequences.txt $HOME/genomes/GCF021917145.1/GCF_021917145.1_fHypTra1_genomic.fna  
 
 
 ## Computing coverage
@@ -102,6 +102,8 @@ ggplot(sum) +
   ylab("Count") +
   theme(axis.title = element_text(face="bold")) +
   scale_y_continuous(breaks=c(0,5,10,15,20,25))
+
+ggsave("outputs/600/average-coverage.jpeg")
 ```
      
 ```{r}

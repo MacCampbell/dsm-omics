@@ -1,0 +1,42 @@
+---
+title: "read-counts"
+author: "Mac Campbell"
+date: "4/7/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message=FALSE)
+```
+
+```{r}
+library(tidyverse)
+library(data.table)
+```
+
+```{r}
+annot<-read_delim("data/pcaSc75.edited.clst", delim="\t", col_names = TRUE) %>% mutate(BamID=paste0(FID,"_RA"))
+annot
+```
+
+## Get read counts
+
+flagstat WadS4_2_RA.sort.bam | grep total
+1586265 + 0 in total (QC-passed reads + QC-failed reads)
+samtools flagstat WadS4_2_RA.sort.flt.bam | grep "properly paired"
+
+```{sh, eval=FALSE}
+cat bamlist_75 | while read line; do echo `basename $line .sort.flt.bam`; samtools flagstat bams/`basename $line .sort.flt.bam`.sort.bam | grep total > `basename $line .sort.flt.bam`.sort.cov; samtools flagstat bams/`basename $line .sort.flt.bam`.sort.flt.bam | grep "properly paired" > `basename $line .sort.flt.bam`.sort.flt.cov;  done;
+```
+
+```{r}
+files<-list.files(path="outputs/coverage", pattern="*.sort.cov", full.names=TRUE)
+list<-lapply(files, read_tsv, col_names=FALSE) 
+names<-lapply(files, basename)
+all<-mapply(c, list, names, SIMPLIFY = FALSE)
+comb<-as_tibble(rbindlist(all, fill=T)) %>% rename(Coverage=X1, CovFile=V1)
+
+comb$BamID<-gsub(".cov",".bam",comb$CovFile)
+comb$`Sample name`<-gsub("_R1.sort.flt.bam","",comb$SeqFile)
+comb<-select(comb, -CovFile)
+```
