@@ -133,24 +133,35 @@ write_tsv(kept96 %>% filter(CrossType=="LDI") %>% select(String), col_names = FA
 
 using one chrom to test 
 
-_1_ Getting SNPS     
+_1_ Getting SNPS    
 
 ```{sh, eval=FALSE}
-sbatch -p bigmemm -t 12:00:00 --mem=32G --nodes=1 $HOME/angsd/angsd -nThreads 6 \
-  -b bamlists/testHDI.bamlist -ref $HOME/genomes/GCF021917145.1/GCF_021917145.1_fHypTra1_genomic.fna \
-  -uniqueOnly 1 -remove_bads 1 -only_proper_pairs 1 \
-  -trim 0 -C 50 -baq 1 \
-  -minMapQ 20 -minQ 20 -minInd 38 -setMinDepth 5 -setMaxDepth 100 -doCounts 1 \
-  -GL 1 -doSaf 1 \
-  -r NC_061060.1 -out ouputs/700/testHDI > outputs/700/testHDI.stdout 2> outputs/700/testHDI.stderr &
+srun -p bigmemm -t 12:00:00 --mem=32G --nodes=1 $HOME/angsd/angsd -nThreads 6 \
+  -minMaf 0.05 -minMapQ 20 -minQ 20 -GL 1 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+  -doGeno 2 -doPost 1 -postCutoff 0.95 -doPlink 2 \
+  -bam  bamlists/testHDI.bamlist -minInd 38  -doCounts 1 -setMinDepth 5 -setMaxDepth 100 \
+  -r NC_061060.1 -out outputs/700/testHDI > outputs/700/testHDI.stdout 2> outputs/700/testHDI.stderr &
 
-sbatch -p bigmemm -t 12:00:00 --mem=32G --nodes=1 $HOME/angsd/angsd -nThreads 6 \
+srun -p bigmemm -t 12:00:00 --mem=32G --nodes=1 $HOME/angsd/angsd -nThreads 6 \
+  -minMaf 0.05 -minMapQ 20 -minQ 20 -GL 1 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+  -doGeno 2 -doPost 1 -postCutoff 0.95 -doPlink 2 \
+  -bam  bamlists/testLDI.bamlist -minInd 44 -doCounts 1 -setMinDepth 5 -setMaxDepth 100 \
+  -r NC_061060.1 -out outputs/700/testLDI > outputs/700/testLDI.stdout 2> outputs/700/testLDI.stderr &
+
+```
+
+
+
+
+```{sh, eval=FALSE}
+#requires polarization
+srun -p bigmemm -t 12:00:00 --mem=32G --nodes=1 $HOME/angsd/angsd -nThreads 6 \
   -b bamlists/testLDI.bamlist -ref $HOME/genomes/GCF021917145.1/GCF_021917145.1_fHypTra1_genomic.fna \
   -uniqueOnly 1 -remove_bads 1 -only_proper_pairs 1 \
   -trim 0 -C 50 -baq 1 \
   -minMapQ 20 -minQ 20 -minInd 44 -setMinDepth 5 -setMaxDepth 100 -doCounts 1 \
   -GL 1 -doSaf 1 \
-  -r NC_061060.1 -out ouputs/700/testLDI > outputs/700/testLDI.stdout 2> outputs/700/testLDI.stderr &
+  -r NC_061060.1 -out outputs/700/testLDI > outputs/700/testLDI.stdout 2> outputs/700/testLDI.stderr &
 ```
 
 _2_ Compute intersect

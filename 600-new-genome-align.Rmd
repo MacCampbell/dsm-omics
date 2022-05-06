@@ -13,6 +13,7 @@ knitr::opts_chunk$set(echo = TRUE,warning=FALSE,message=FALSE)
 ```{r}
 library(tidyverse)
 library(viridis)
+library(data.table)
 ```
 
 Old data mv *bam *bai *cov *sh *out /group/millermrgrp4/maccamp/smelt-wgs/original-alignments/     
@@ -111,7 +112,10 @@ sum %>% group_by(`library number`) %>%
   summarize(AvgCoverage=mean(Coverage))
 ```
 
-
+```{r}
+sum %>% group_by(`library number`) %>% summarize(Count=n())
+```
+  
 ## Creating a  test dataset
 
 
