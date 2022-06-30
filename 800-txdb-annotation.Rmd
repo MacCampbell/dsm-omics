@@ -1,0 +1,33 @@
+---
+title: "800-txdb-annotation"
+author: "Mac Campbell"
+date: "5/25/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+```
+
+# get gtf in outputs/800
+
+```{sh, eval=FALSE}
+wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/021/917/145/GCF_021917145.1_fHypTra1/GCF_021917145.1_fHypTra1_genomic.gtf.gz
+```
+
+# Make TxDB object
+
+```{r}
+library(GenomicFeatures)
+library(AnnotationDbi)
+``` 
+
+```{r}
+txdb = makeTxDbFromGFF('outputs/800/GCF_021917145.1_fHypTra1_genomic.gtf.gz')
+saveDb(txdb, 'outputs/800/txdb.CF_021917145.1_fHypTra1_genomic.sqlite')
+```
+
+```{r}
+txdb = loadDb(file = 'outputs/800/txdb.CF_021917145.1_fHypTra1_genomic.sqlite')
+genes(txdb)
+```

@@ -1,0 +1,11 @@
+ lftp subftp@ftp-private.ncbi.nlm.nih.gov
+ cd uploads/drmaccampbell_gmail.com_08SzFQh1
+ 
+ lftp subftp@ftp-private.ncbi.nlm.nih.gov:/uploads/drmaccampbell_gmail.com_08SzFQh1> mkdir dsm-wgs
+
+cd dsm-wgs
+
+!ls
+
+lftp subftp@ftp-private.ncbi.nlm.nih.gov:/uploads/drmaccampbell_gmail.com_08SzFQh1/dsm-wgs> mput *.fastq.gz
+

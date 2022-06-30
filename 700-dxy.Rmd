@@ -127,6 +127,8 @@ kept96 %>% group_by(CrossType) %>% summarize(Count=n())
 91 samples split between HDI and LDI.
 
 ```{r}
+write_tsv(kept96 %>% select(String), col_names = FALSE, file = "bamlists/test91.bamlist")
+
 write_tsv(kept96 %>% filter(CrossType=="HDI") %>% select(String), col_names = FALSE, file = "bamlists/testHDI.bamlist")
 write_tsv(kept96 %>% filter(CrossType=="LDI") %>% select(String), col_names = FALSE, file = "bamlists/testLDI.bamlist")
 ```
@@ -135,70 +137,109 @@ using one chrom to test
 
 _1_ Getting SNPS    
 
+Can fold with -doSaf 1 -anc $REF
+
 ```{sh, eval=FALSE}
 srun -p bigmemm -t 12:00:00 --mem=32G --nodes=1 $HOME/angsd/angsd -nThreads 6 \
   -minMaf 0.05 -minMapQ 20 -minQ 20 -GL 1 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
-  -doGeno 2 -doPost 1 -postCutoff 0.95 -doPlink 2 \
-  -bam  bamlists/testHDI.bamlist -minInd 38  -doCounts 1 -setMinDepth 5 -setMaxDepth 100 \
+  -doGeno 2 -doPost 1 -postCutoff 0.95 -doPlink 2 -ref $HOME/genomes/GCF021917145.1/GCF_021917145.1_fHypTra1_genomic.fna \
+  -bam  bamlists/testHDI.bamlist -minInd 38  -doCounts 1  \
   -r NC_061060.1 -out outputs/700/testHDI > outputs/700/testHDI.stdout 2> outputs/700/testHDI.stderr &
 
 srun -p bigmemm -t 12:00:00 --mem=32G --nodes=1 $HOME/angsd/angsd -nThreads 6 \
   -minMaf 0.05 -minMapQ 20 -minQ 20 -GL 1 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
-  -doGeno 2 -doPost 1 -postCutoff 0.95 -doPlink 2 \
-  -bam  bamlists/testLDI.bamlist -minInd 44 -doCounts 1 -setMinDepth 5 -setMaxDepth 100 \
+  -doGeno 2 -doPost 1 -postCutoff 0.95 -doPlink 2 -ref $HOME/genomes/GCF021917145.1/GCF_021917145.1_fHypTra1_genomic.fna \
+  -bam  bamlists/testLDI.bamlist -minInd 44 -doCounts 1  \
   -r NC_061060.1 -out outputs/700/testLDI > outputs/700/testLDI.stdout 2> outputs/700/testLDI.stderr &
+
+srun -p bigmemm -t 1-12:00:00 --mem=32G --nodes=1 $HOME/angsd/angsd -nThreads 6 \
+  -minMaf 0.05 -minMapQ 20 -minQ 20 -GL 1 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+  -doGeno 2 -doPost 1 -postCutoff 0.95 -doPlink 2 -ref $HOME/genomes/GCF021917145.1/GCF_021917145.1_fHypTra1_genomic.fna \
+  -bam  bamlists/test91.bamlist -minInd 82  -doCounts 1 \
+   -out outputs/700/test91 > outputs/700/test91.stdout 2> outputs/700/test91.stderr &
 
 ```
 
 
 
-
-```{sh, eval=FALSE}
-#requires polarization
-srun -p bigmemm -t 12:00:00 --mem=32G --nodes=1 $HOME/angsd/angsd -nThreads 6 \
-  -b bamlists/testLDI.bamlist -ref $HOME/genomes/GCF021917145.1/GCF_021917145.1_fHypTra1_genomic.fna \
-  -uniqueOnly 1 -remove_bads 1 -only_proper_pairs 1 \
-  -trim 0 -C 50 -baq 1 \
-  -minMapQ 20 -minQ 20 -minInd 44 -setMinDepth 5 -setMaxDepth 100 -doCounts 1 \
-  -GL 1 -doSaf 1 \
-  -r NC_061060.1 -out outputs/700/testLDI > outputs/700/testLDI.stdout 2> outputs/700/testLDI.stderr &
-```
 
 _2_ Compute intersect
 
+-fold 1 should be passed to realSFS, bc folded spectra
+
 ```{sh, eval=FALSE}
-$HOME/angsd/realSFS print outputs/700/HDI.saf.idx outputs/700/LDI.saf.idx | cut -f 1-2 > outputs/700/intersect.txt
+$HOME/angsd/misc/realSFS print outputs/700/testHDI.saf.idx outputs/700/testLDI.saf.idx | cut -f 1-2 > outputs/700/intersect.txt
 
 $HOME/angsd/angsd sites index outputs/700/intersect.txt
 
 NSITES=`wc -l outputs/700/intersect.txt | cut -f 1 -d " "`
 echo $NSITES
 ```
+16925 sites
 
 _3_ Compute the sample allele frequency likelihoods only for the overlapping (valid) sites.
 
 ```{sh, eval=FALSE}
-sbatch -p bigmemm -t 12:00:00 --mem=32G --nodes=1 $HOME/angsd/angsd -nThreads 6 \
-  -b bamlists/testHDI.bamlist -ref $HOME/genomes/GCF021917145.1/GCF_021917145.1_fHypTra1_genomic.fna \
-  -uniqueOnly 1 -remove_bads 1 -only_proper_pairs 1 \
-  -trim 0 -C 50 -baq 1 \
-  -minMapQ 20 -minQ 20 -minInd 38 -setMinDepth 5 -setMaxDepth 100 -doCounts 1 \
-  -GL 1 -doSaf 1 \
-  -r NC_061060.1 -sites outputs/700/intesect.txt -out ouputs/700/testHDI > outputs/700/testHDI.stdout 2> outputs/700/testHDI.stderr &
+srun -p bigmemm -t 12:00:00 --mem=32G --nodes=1 $HOME/angsd/angsd -nThreads 6 \
+  -minMaf 0.05 -minMapQ 20 -minQ 20 -GL 1 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+  -doGeno 2 -doPost 1 -postCutoff 0.95 -doPlink 2  -ref  $HOME/genomes/GCF021917145.1/GCF_021917145.1_fHypTra1_genomic.fna \
+  -bam  bamlists/testHDI.bamlist -minInd 38  -doCounts 1  \
+  -r NC_061060.1 -sites outputs/700/intersect.txt -out outputs/700/testHDI-int > outputs/700/testHDI-int.stdout 2> outputs/700/testHDI-int.stderr &
 
-sbatch -p bigmemm -t 12:00:00 --mem=32G --nodes=1 $HOME/angsd/angsd -nThreads 6 \
-  -b bamlists/testLDI.bamlist -ref $HOME/genomes/GCF021917145.1/GCF_021917145.1_fHypTra1_genomic.fna \
-  -uniqueOnly 1 -remove_bads 1 -only_proper_pairs 1 \
-  -trim 0 -C 50 -baq 1 \
-  -minMapQ 20 -minQ 20 -minInd 44 -setMinDepth 5 -setMaxDepth 100 -doCounts 1 \
-  -GL 1 -doSaf 1 \
-  -r NC_061060.1 -sites outputs/700/intesect.txt -out ouputs/700/testLDI > outputs/700/testLDI.stdout 2> outputs/700/testLDI.stderr &
+srun -p bigmemm -t 12:00:00 --mem=32G --nodes=1 $HOME/angsd/angsd -nThreads 6 \
+  -minMaf 0.05 -minMapQ 20 -minQ 20 -GL 1 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+  -doGeno 2 -doPost 1 -postCutoff 0.95 -doPlink 2  -ref  $HOME/genomes/GCF021917145.1/GCF_021917145.1_fHypTra1_genomic.fna \
+  -bam  bamlists/testLDI.bamlist -minInd 44 -doCounts 1  \
+  -r NC_061060.1 -sites outputs/700/intersect.txt -out outputs/700/testLDI-int > outputs/700/testLDI-int.stdout 2> outputs/700/testLDI-int.stderr &
 ```
 
 
+_4_ Now run get dxy on each .saf
 
+ It should be chromo position major minor ref knownEM unknownEM nInd      
+ ./per getDxy.pl –pop1maf ~/Downloads/angsd/steelhead3.mafs –pop2maf ~/Downloads/angsd/rainbows3.mafs –minInd 12 > dxy_sashin_out.txt  
+```{sh, eval=FALSE}
+../../dxy/getDxy.pl -pop1maf testHDI-int.mafs -pop2maf testLDI-int.mafs -minInd 40 > dxy.txt
+```
+
+
+```{r}
+dxy<-read_tsv("outputs/700/dxy.txt")
+```
+
+```{r}
+ggplot(dxy) +
+  geom_point(aes(x=position, y=Dxy), pch=21, alpha=0.5, fill="grey") +
+  theme(panel.grid=element_blank())
+```
+
+As boxplot     
+
+```{r}
+ggplot(dxy) + 
+  geom_boxplot(aes(x=chromo,y=Dxy))
+```
+
+```{r}
+boxplot.stats(dxy$Dxy)$out
+```
+
+Now for all chroms:
+
+```{sh, eval=FALSE}
+srun -p bigmemm -t 2-12:00:00 --mail-type=ALL --mem=32G --nodes=1 $HOME/angsd/angsd -nThreads 6 \
+  -minMaf 0.05 -minMapQ 20 -minQ 20 -GL 1 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+  -doGeno 2 -doPost 1 -postCutoff 0.95 -doPlink 2 -ref $HOME/genomes/GCF021917145.1/GCF_021917145.1_fHypTra1_genomic.fna \
+  -bam  bamlists/testHDI.bamlist -minInd 38  -doCounts 1  \
+  -out /home/maccamp/extra/genos/all-chroms-HDI > /home/maccamp/extra/genos/testHDI.stdout 2> /home/maccamp/extra/genos/testHDI.stderr &
+
+srun -p bigmemm -t 2-12:00:00 --mail-type=ALL --mem=32G --nodes=1 $HOME/angsd/angsd -nThreads 6 \
+  -minMaf 0.05 -minMapQ 20 -minQ 20 -GL 1 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+  -doGeno 2 -doPost 1 -postCutoff 0.95 -doPlink 2 -ref $HOME/genomes/GCF021917145.1/GCF_021917145.1_fHypTra1_genomic.fna \
+  -bam  bamlists/testLDI.bamlist -minInd 44 -doCounts 1  \
+  -out /home/maccamp/extra/genos/all-chroms-testLDI >/home/maccamp/extra/genos/testLDI.stdout 2> /home/maccamp/extra/genos/testLDI.stderr &
+```
 
 Some more ideas:
 
 Compute LD decay, sliding window Fsts. Phase with beagle or shapeit, haplotype statistics within HDI and between HDI and LDI with rehh?
-
