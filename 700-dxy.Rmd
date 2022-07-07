@@ -224,22 +224,59 @@ ggplot(dxy) +
 boxplot.stats(dxy$Dxy)$out
 ```
 
-Now for all chroms:
+Now for all chroms: using doSaf1
 
 ```{sh, eval=FALSE}
-srun -p bigmemm -t 2-12:00:00 --mail-type=ALL --mem=32G --nodes=1 $HOME/angsd/angsd -nThreads 6 \
+srun -p bigmemm -t 3-12:00:00 --mail-type=ALL --mem=32G --nodes=1 $HOME/angsd/angsd -nThreads 6 \
   -minMaf 0.05 -minMapQ 20 -minQ 20 -GL 1 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
-  -doGeno 2 -doPost 1 -postCutoff 0.95 -doPlink 2 -ref $HOME/genomes/GCF021917145.1/GCF_021917145.1_fHypTra1_genomic.fna \
+  -doGeno 2 -doPost 1 -postCutoff 0.95 -doPlink 2 -doSaf 1 -anc $HOME/genomes/GCF021917145.1/GCF_021917145.1_fHypTra1_genomic.fna \
   -bam  bamlists/testHDI.bamlist -minInd 38  -doCounts 1  \
-  -out /home/maccamp/extra/genos/all-chroms-HDI > /home/maccamp/extra/genos/testHDI.stdout 2> /home/maccamp/extra/genos/testHDI.stderr &
+  -out /home/maccamp/dsm-omics/outputs/700/all-chroms-HDI > /home/maccamp/dsm-omics/outputs/700/testHDI.stdout 2> /home/maccamp/dsm-omics/outputs/700/testHDI.stderr &
 
-srun -p bigmemm -t 2-12:00:00 --mail-type=ALL --mem=32G --nodes=1 $HOME/angsd/angsd -nThreads 6 \
+srun -p bigmemm -t 3-12:00:00 --mail-type=ALL --mem=32G --nodes=1 $HOME/angsd/angsd -nThreads 6 \
   -minMaf 0.05 -minMapQ 20 -minQ 20 -GL 1 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
-  -doGeno 2 -doPost 1 -postCutoff 0.95 -doPlink 2 -ref $HOME/genomes/GCF021917145.1/GCF_021917145.1_fHypTra1_genomic.fna \
+  -doGeno 2 -doPost 1 -postCutoff 0.95 -doPlink 2 -doSaf 1 -anc $HOME/genomes/GCF021917145.1/GCF_021917145.1_fHypTra1_genomic.fna \
   -bam  bamlists/testLDI.bamlist -minInd 44 -doCounts 1  \
-  -out /home/maccamp/extra/genos/all-chroms-testLDI >/home/maccamp/extra/genos/testLDI.stdout 2> /home/maccamp/extra/genos/testLDI.stderr &
+  -out /home/maccamp/dsm-omics/outputs/700/all-chroms-testLDI >/home/maccamp/dsm-omics/outputs/700/testLDI.stdout 2> /home/maccamp/dsm-omics/outputs/700/testLDI.stderr &
+
 ```
 
+Find intersect:    
+
+```{sh, eval=FALSE}
+$HOME/angsd/misc/realSFS print outputs/700/all-chroms-HDI.saf.idx outputs/700/all-chroms-testLDI.saf.idx | cut -f 1-2 > outputs/700/all-chroms-intersect.txt
+
+$HOME/angsd/angsd sites index outputs/700/all-chroms-intersect.txt
+
+NSITES=`wc -l outputs/700/all-chroms-intersect.txt | cut -f 1 -d " "`
+echo $NSITES
+```
+
+641913 sites.     
+
+Compute for overlapping sites:
+
+
+```{sh, eval=FALSE}
+srun -p bigmemm -t 3-12:00:00 --mail-type=ALL --mem=32G --nodes=1 $HOME/angsd/angsd -nThreads 6 \
+  -minMaf 0.05 -minMapQ 20 -minQ 20 -GL 1 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+  -doGeno 2 -doPost 1 -postCutoff 0.95 -doPlink 2 -doSaf 1 -anc $HOME/genomes/GCF021917145.1/GCF_021917145.1_fHypTra1_genomic.fna \
+  -bam  bamlists/testHDI.bamlist -minInd 38  -doCounts 1 -sites outputs/700/all-chroms-intersect.txt \
+  -out /home/maccamp/dsm-omics/outputs/700/all-chroms-HDI-intersect > /home/maccamp/dsm-omics/outputs/700/testHDI.stdout 2> /home/maccamp/dsm-omics/outputs/700/testHDI.stderr &
+
+srun -p bigmemm -t 3-12:00:00 --mail-type=ALL --mem=32G --nodes=1 $HOME/angsd/angsd -nThreads 6 \
+  -minMaf 0.05 -minMapQ 20 -minQ 20 -GL 1 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+  -doGeno 2 -doPost 1 -postCutoff 0.95 -doPlink 2 -doSaf 1 -anc $HOME/genomes/GCF021917145.1/GCF_021917145.1_fHypTra1_genomic.fna \
+  -bam  bamlists/testLDI.bamlist -minInd 44 -doCounts 1  -sites outputs/700/all-chroms-intersect.txt\
+  -out /home/maccamp/dsm-omics/outputs/700/all-chroms-LDI-intersect >/home/maccamp/dsm-omics/outputs/700/testLDI.stdout 2> /home/maccamp/dsm-omics/outputs/700/testLDI.stderr &
+
+```
+
+Compute dxy
+
+```{sh, eval=FALSE}
+../../dxy/getDxy.pl -pop1maf all-chroms-HDI-intersect -pop2maf all-chroms-LDI-intersect.mafs -minInd 40 > all-chroms-dxy.txt
+```
 Some more ideas:
 
 Compute LD decay, sliding window Fsts. Phase with beagle or shapeit, haplotype statistics within HDI and between HDI and LDI with rehh?
