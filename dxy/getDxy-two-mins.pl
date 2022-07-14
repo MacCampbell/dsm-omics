@@ -63,7 +63,7 @@ while($line1=<POP1MAF>){
         chomp $line1;my @parts=split('\t',$line1);
         
         #read in maf from pop2
-        $line2=<POP2MAF>;chomp $line2;my @parts2=split('\t',$line2);
+        $line2=<POP2MAF>;chomp $line2; my @parts2=split('\t',$line2);
         
 #if(($parts[7]>=$minInd)&&($parts2[7]>=$minInd)){#use only sites that are covered by at least $minInd individuals in each population, in v2 updated the position of the nIND column in MAF file 
 if(($parts[7]>=$minInd)&&($parts2[7]>=$minInd2)){#use only sites that are covered by at least $minInd individuals in each population, in v2 updated the position of the nIND column in MAF file 

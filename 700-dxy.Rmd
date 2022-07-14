@@ -264,7 +264,7 @@ srun -p bigmemm -t 3-12:00:00 --mail-type=ALL --mem=32G --nodes=1 $HOME/angsd/an
   -bam  bamlists/testHDI.bamlist -minInd 38  -doCounts 1 -sites outputs/700/all-chroms-intersect.txt \
   -out /home/maccamp/dsm-omics/outputs/700/all-chroms-HDI-intersect > /home/maccamp/dsm-omics/outputs/700/testHDI.stdout 2> /home/maccamp/dsm-omics/outputs/700/testHDI.stderr &
 
-srun -p bigmemm -t 3-12:00:00 --mail-type=ALL --mem=32G --nodes=1 $HOME/angsd/angsd -nThreads 6 \
+srun -p bigmemh -t 3-12:00:00 --mail-type=ALL --mem=32G --nodes=1 $HOME/angsd/angsd -nThreads 6 \
   -minMaf 0.05 -minMapQ 20 -minQ 20 -GL 1 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
   -doGeno 2 -doPost 1 -postCutoff 0.95 -doPlink 2 -doSaf 1 -anc $HOME/genomes/GCF021917145.1/GCF_021917145.1_fHypTra1_genomic.fna \
   -bam  bamlists/testLDI.bamlist -minInd 44 -doCounts 1  -sites outputs/700/all-chroms-intersect.txt\
@@ -286,8 +286,8 @@ Compute LD decay, sliding window Fsts. Phase with beagle or shapeit, haplotype s
 ddxy<-read_tsv("outputs/700/all-chroms-dxy.txt") 
 chromo<-ddxy[str_starts(ddxy$chromo, "NC"),]
 ```
-149,476 positions with getDxy.pl -minInd 40
-
+202,446 positions with getDxy.pl -minInd 35
+180,901 positions with getDxy.pl -minInd 40
 ```{r}
 outs<-boxplot.stats(chromo$Dxy)$out
 
@@ -306,4 +306,36 @@ ggsave("outputs/700/dxy.jpeg", width=15, height=12)
 
 redoing, 'cause weird.
 
+
+Hmm, my mafs file has the wrong columns
+head all-chroms-LDI-intersect.mafs 
+chromo	position	major	minor	anc	knownEM	pK-EM	nInd
+
+What about like this?
+-doMaf 3 -ref (switching back to anc)
+
+`(base) maccamp@farm:~/dsm-omics/outputs/700$ head -n 1000 all-chroms-intersect.txt > all-chroms-intersect-1000.txt`
+`$HOME/angsd/angsd sites index all-chroms-intersect-1000.txt`
+
+```{sh, eval=FALSE}
+srun -p high -t 2:00:00 --mail-type=ALL --mem=16G --nodes=1 $HOME/angsd/angsd -nThreads 6 \
+  -minMaf 0.05 -minMapQ 20 -minQ 20 -GL 1 -doMajorMinor 1 -doMaf 3 -SNP_pval 1e-6 \
+  -doGeno 2 -doPost 1 -postCutoff 0.95 -doPlink 2 -doSaf 1 -anc $HOME/genomes/GCF021917145.1/GCF_021917145.1_fHypTra1_genomic.fna \
+  -bam  bamlists/testHDI.bamlist -minInd 38  -doCounts 1 -sites outputs/700/all-chroms-intersect-1000.txt \
+  -out /home/maccamp/dsm-omics/outputs/700/hdi-1000 > /home/maccamp/dsm-omics/outputs/700/hdi-1000.stdout 2> /home/maccamp/dsm-omics/outputs/700/hdi-1000.stderr &
+
+srun -p high -t 2:00:00 --mail-type=ALL --mem=16G --nodes=1 $HOME/angsd/angsd -nThreads 6 \
+  -minMaf 0.05 -minMapQ 20 -minQ 20 -GL 1 -doMajorMinor 1 -doMaf 3 -SNP_pval 1e-6 \
+  -doGeno 2 -doPost 1 -postCutoff 0.95 -doPlink 2 -doSaf 1 -anc $HOME/genomes/GCF021917145.1/GCF_021917145.1_fHypTra1_genomic.fna \
+  -bam  bamlists/testLDI.bamlist -minInd 44 -doCounts 1  -sites outputs/700/all-chroms-intersect-1000.txt \
+  -out /home/maccamp/dsm-omics/outputs/700/ldi-1000 >/home/maccamp/dsm-omics/outputs/700/ldi-1000.stdout 2> /home/maccamp/dsm-omics/outputs/700/ldi-1000.stderr &
+
+```
+
+abcFreq.cpp] You have selected filters for maf/lrt
+If you have selected more than one MAF estimator we will choose in following order
+	1. knownminor EM
+	2. unknownminor EM
+	3. Posterior maf
+	-> Must supply -anc for polarizing the spectrum
 
