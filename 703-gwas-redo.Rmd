@@ -1,0 +1,39 @@
+---
+title: "703-gwas-redo"
+author: "Mac Campbell"
+date: "7/14/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+```
+
+## 91 fish organized like so:
+
+```{r}
+kept96<-read_tsv("meta/kept96.tsv")
+
+kept96 %>% group_by(CrossType) %>% summarize(Count=n())
+```
+
+91 samples split between HDI and LDI.
+"bamlists/test91.bamlist")
+
+Can use 301-do-asso.sh, but need a phenotype file.
+
+0 for controls, 1 for cases      
+
+```{r}
+phenos<-kept96 %>% select(`Sample name`, Individual, String, DI) %>% mutate(Pheno=ifelse(DI=="LowDI",0,1))
+phenos
+
+write_tsv(phenos %>% select(Pheno), col_names = FALSE, "meta/test91.pheno")
+```
+
+
+Now to run GWAS
+
+```{sh, eval=FALSE}
+bash $HOME/dsm-omics/301-do-asso.sh $HOME/dsm-omics/bamlists/test91.bamlist  $HOME/dsm-omics/meta/1mbseqs.txt $HOME/dsm-omics/bamlists/test91.pheno 
+```

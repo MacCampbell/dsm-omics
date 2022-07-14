@@ -1,0 +1,30 @@
+---
+title: "702-absolute-difference"
+author: "Mac Campbell"
+date: "7/14/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+```
+
+## Absolute Difference
+
+Looking at absolute allele frequency differences. Calling genotypes across fish.
+
+```{sh, eval=FALSE}
+srun -p bigmemh -t 1-18:00:00 --mem=32G --nodes=1 $HOME/angsd/angsd -nThreads 6 \
+  -minMaf 0.05 -minMapQ 20 -minQ 20 -GL 1 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+  -doGeno 2 -doPost 1 -postCutoff 0.95 -doPlink 2 -ref $HOME/genomes/GCF021917145.1/GCF_021917145.1_fHypTra1_genomic.fna \
+  -bam  bamlists/test91.bamlist -minInd 82  -doCounts 1 \
+   -out outputs/702/test91 > outputs/702/test91.stdout 2> outputs/702/test91.stderr &
+```
+   
+   
+Convert plink to vcf 
+
+```{sh, eval=FALSE}
+plink --tped plink.tped --tfam plink.tfam  --out binary --recode --allow-extra-chr --noweb
+plink --ped binary.ped --map binary.map --recode vcf --allow-extra-chr -out recode
+```
