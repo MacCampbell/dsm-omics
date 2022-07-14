@@ -227,13 +227,13 @@ boxplot.stats(dxy$Dxy)$out
 Now for all chroms: using doSaf1
 
 ```{sh, eval=FALSE}
-srun -p bigmemm -t 3-12:00:00 --mail-type=ALL --mem=32G --nodes=1 $HOME/angsd/angsd -nThreads 6 \
+srun -p bigmemh -t 3-12:00:00 --mail-type=ALL --mem=32G --nodes=1 $HOME/angsd/angsd -nThreads 6 \
   -minMaf 0.05 -minMapQ 20 -minQ 20 -GL 1 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
   -doGeno 2 -doPost 1 -postCutoff 0.95 -doPlink 2 -doSaf 1 -anc $HOME/genomes/GCF021917145.1/GCF_021917145.1_fHypTra1_genomic.fna \
   -bam  bamlists/testHDI.bamlist -minInd 38  -doCounts 1  \
   -out /home/maccamp/dsm-omics/outputs/700/all-chroms-HDI > /home/maccamp/dsm-omics/outputs/700/testHDI.stdout 2> /home/maccamp/dsm-omics/outputs/700/testHDI.stderr &
 
-srun -p bigmemm -t 3-12:00:00 --mail-type=ALL --mem=32G --nodes=1 $HOME/angsd/angsd -nThreads 6 \
+srun -p bigmemh -t 3-12:00:00 --mail-type=ALL --mem=32G --nodes=1 $HOME/angsd/angsd -nThreads 6 \
   -minMaf 0.05 -minMapQ 20 -minQ 20 -GL 1 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
   -doGeno 2 -doPost 1 -postCutoff 0.95 -doPlink 2 -doSaf 1 -anc $HOME/genomes/GCF021917145.1/GCF_021917145.1_fHypTra1_genomic.fna \
   -bam  bamlists/testLDI.bamlist -minInd 44 -doCounts 1  \
@@ -252,7 +252,7 @@ NSITES=`wc -l outputs/700/all-chroms-intersect.txt | cut -f 1 -d " "`
 echo $NSITES
 ```
 
-641913 sites.     
+641913 sites, redoing results in 641892 sites!!!!!
 
 Compute for overlapping sites:
 
@@ -272,11 +272,38 @@ srun -p bigmemm -t 3-12:00:00 --mail-type=ALL --mem=32G --nodes=1 $HOME/angsd/an
 
 ```
 
-Compute dxy
+Compute dxy, it outputs/700
 
 ```{sh, eval=FALSE}
-../../dxy/getDxy.pl -pop1maf all-chroms-HDI-intersect -pop2maf all-chroms-LDI-intersect.mafs -minInd 40 > all-chroms-dxy.txt
+gunzip all-chroms*intersect.mafs.gz
+../../dxy/getDxy.pl -pop1maf all-chroms-HDI-intersect.mafs -pop2maf all-chroms-LDI-intersect.mafs -minInd 35 > all-chroms-dxy.txt
 ```
 Some more ideas:
 
 Compute LD decay, sliding window Fsts. Phase with beagle or shapeit, haplotype statistics within HDI and between HDI and LDI with rehh?
+
+```{r}
+ddxy<-read_tsv("outputs/700/all-chroms-dxy.txt") 
+chromo<-ddxy[str_starts(ddxy$chromo, "NC"),]
+```
+149,476 positions with getDxy.pl -minInd 40
+
+```{r}
+outs<-boxplot.stats(chromo$Dxy)$out
+
+dfouts<-chromo %>% filter(Dxy %in% outs)
+```
+
+```{r}
+ggplot(chromo) +
+  geom_point(aes(x=position, y=Dxy), pch=21, alpha=0.5, fill="grey", cex=1) +
+  geom_point(data=dfouts, aes(x=position, y=Dxy), pch=21, alpha=0.75, fill="skyblue",cex=2) +
+  theme(panel.grid=element_blank()) +
+  facet_wrap(.~chromo, scales = "free_x", ncol = 6)
+
+ggsave("outputs/700/dxy.jpeg", width=15, height=12)
+```
+
+redoing, 'cause weird.
+
+

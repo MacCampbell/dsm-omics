@@ -19,7 +19,7 @@ library(tidyverse)
 Fst looks to be a good place to start.    
 
 ```{sh, eval=FALSE}
-srun -p med -t 2-12:00:00 --mem=32G --nodes=1 $HOME/angsd/angsd -b bamlists/testHDI.bamlist -anc $HOME/genomes/GCF021917145.1/GCF_021917145.1_fHypTra1_genomic.fna \
+srun -p bigmemh -t 2-12:00:00 --mem=32G --nodes=1 $HOME/angsd/angsd -b bamlists/testHDI.bamlist -anc $HOME/genomes/GCF021917145.1/GCF_021917145.1_fHypTra1_genomic.fna \
   -ref $HOME/genomes/GCF021917145.1/GCF_021917145.1_fHypTra1_genomic.fna \
   -uniqueOnly 1 -remove_bads 1 -only_proper_pairs 1 -baq 2 -GL 1  -doMaf 1 -doMajorMinor 1 \
   -minMapQ 20 -minQ 20 -doSaf 1 -nThreads 8  \
