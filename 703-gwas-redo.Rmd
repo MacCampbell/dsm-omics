@@ -9,6 +9,11 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
 ```
 
+```{r}
+library(tidyverse)
+library(RColorBrewer)
+```
+
 ## 91 fish organized like so:
 
 ```{r}
@@ -32,8 +37,85 @@ write_tsv(phenos %>% select(Pheno), col_names = FALSE, "meta/test91.pheno")
 ```
 
 
-Now to run GWAS
+Now to run GWAS in ~/dsm-omics/outputs/703 on farm     
 
 ```{sh, eval=FALSE}
-bash $HOME/dsm-omics/301-do-asso.sh $HOME/dsm-omics/bamlists/test91.bamlist  $HOME/dsm-omics/meta/1mbseqs.txt $HOME/dsm-omics/bamlists/test91.pheno 
+bash $HOME/dsm-omics/301-do-asso.sh $HOME/dsm-omics/bamlists/test91.bamlist  $HOME/dsm-omics/meta/1mbseqs.txt $HOME/dsm-omics/meta/test91.pheno 
 ```
+
+
+### A couple chroms
+
+```{r}
+files = list.files(path="outputs/703/", pattern="*.lrt0.gz", full.names = TRUE)
+list = lapply(files, read_tsv)
+data<-bind_rows(list)
+```
+```{r}
+df <- data %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
+  filter(log10p>=0 & log10p != "Inf") %>%
+  mutate(p = dchisq(LRT, df=1)) %>%
+  mutate(bonfer = p.adjust(p, method = "bonferroni")) %>% 
+  mutate(BHfdr = p.adjust(p, method = "BH")) %>%
+  group_by(Chromosome) %>%
+  mutate(adjpchrom = p.adjust(p, method = "bonferroni")) %>%
+  mutate(BHfdrchrom = p.adjust(p, method = "BH"))
+
+df %>% arrange(-LRT) %>% head(n=20)
+```
+
+
+```{r}
+df %>% filter(log10p>20)
+```
+
+```{r}
+#chroms<-df %>% select(Chromosome, Index) %>% group_by(Chromosome)  %>% summarize(Position=mean(Index))
+#chroms
+```
+colors      
+```{r}
+nb.cols <- length(unique(df$Chromosome))
+mycolors <- colorRampPalette(brewer.pal(8, "Set1"))(nb.cols)
+#randomize
+mycolors<-sample(mycolors)
+```
+
+```{r}
+ggplot(df) +
+  geom_point(aes(x=Position, y=log10p, color=Chromosome), alpha=0.75, cex=0.5) +
+ # geom_hline(yintercept = -log10(0.05/nrow(dddf)), col="black", linetype=2, alpha=0.5) +
+#  geom_hline(yintercept= 8, col="black", linetype=1, alpha=0.5) +
+  theme_bw() +
+#  scale_x_continuous(breaks=chroms$Position, labels=chroms$Chromosome) +
+  theme(axis.text.x = element_text(angle=45, hjust = 1, face="bold", size=8)) +
+  theme(legend.title = element_blank()) +
+  theme(panel.grid = element_blank()) +
+  theme(legend.position = "none") +
+  scale_color_manual(values=mycolors) +
+  ylab("-log10(p)\n") +
+  xlab("\nChromosome") +
+  ggtitle("HDI vs LDI") +
+  theme(plot.title = element_text(hjust=0.5) ) +
+  theme(plot.subtitle = element_text(hjust=0.5)) +
+  facet_wrap(.~Chromosome, ncol=5) +
+  theme(axis.ticks.x = element_blank(), axis.text.x = element_blank())
+
+ggsave("outputs/703/hdi-ldi-91-GWAS.jpeg", width=18, height=12)
+```
+
+```{r}
+df
+```
+
+dxy=0.733253522944
+(base) maccamp@farm:~/dsm-omics/outputs/700$ grep 2535255 all-chroms-LDI-intersect.mafs 
+NC_061064.1	2535255	C	G	G	0.193938	0.000000e+00	49
+(base) maccamp@farm:~/dsm-omics/outputs/700$ grep 2535255 all-chroms-HDI-intersect.mafs 
+NC_061064.1	2535255	G	C	G	0.118944	0.000000e+00	42
+
+dxy=0.720350741416
+(base) maccamp@farm:~/dsm-omics/outputs/700$ grep 15990424 all-chroms-HDI-intersect.mafs 
+NC_061061.1	15990424	A	T	A	0.179706	0.000000e+00	42
+(base) maccamp@farm:~/dsm-omics/outputs/700$ grep 15990424 all-chroms-LDI-intersect.mafs 
+NC_061061.1	15990424	T	A	A	0.156018	0.000000e+00	44

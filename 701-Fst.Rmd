@@ -59,7 +59,7 @@ region	chr	midPos	Nsites
 (22419,72101)(40000,89999)(40000,90000)	NC_061060.1	65000	49684	0.027812
 (32406,82046)(50000,99999)(50000,100000)	NC_061060.1	75000	49642	0.028658
 
-Looks fine. Trying with all the chroms.
+Looks fine. Trying with all the chroms. (but didn't specify, do'h)
 
 ```{sh, eval=FALSE}
 srun -p bigmemh -t 3-12:00:00 --mem=32G --nodes=1 $HOME/angsd/angsd -b bamlists/testHDI.bamlist -anc $HOME/genomes/GCF021917145.1/GCF_021917145.1_fHypTra1_genomic.fna \
@@ -76,4 +76,11 @@ srun -p bigmemh -t 3-12:00:00 --mem=32G --nodes=1 $HOME/angsd/angsd -b bamlists/
   
 ```
 
+Completed runs.... 
+
 Should set up a script to run realSFS, see 701.1-sfs.sh, can execute with srun.
+(base) maccamp@farm:~/dsm-omics$ srun -p high -t 2:00:00 --nodes=1 bash 701.1-sfs.sh > outputs/701/sfs.stdout 2> outputs/701/sfs.stderr &
+
+You know, I could do per chromosome fst, this wants a lot of memory!
+
+ srun -p bigmemh -t 2:00:00 --nodes=1 --mem=32G  bash 701.1-sfs.sh > outputs/701/sfs.stdout 2> outputs/701/sfs.stderr &

@@ -355,6 +355,43 @@ srun -p high -t 3-12:00:00 --mail-type=ALL --mem=16G --nodes=1 $HOME/angsd/angsd
 
 ```
 
+hdi-basic/ldi-basic ran to completion.
+
+(base) maccamp@farm:~/dsm-omics/outputs/700$ head hdi-basic.mafs 
+chromo	position	major	minor	ref	knownEM	pK-EM	nInd
+NC_061060.1	1155	T	A	T	0.349508	0.000000e+00	42
+NC_061060.1	17087	A	T	A	0.325057	0.000000e+00	42
+
+(base) maccamp@farm:~/dsm-omics/outputs/700$ wc -l ldi-basic.mafs 
+641887 ldi-basic.mafs
+(base) maccamp@farm:~/dsm-omics/outputs/700$ wc -l hdi-basic.mafs 
+641883 hdi-basic.mafs
+Ahhh.... We don't have the same number of lines in the files, so getDxy gives us funny results!!!!!!!!!!!!!!!!!!
+
+../../dxy/getDxy-two-mins.pl -pop1maf hdi-basic.mafs -pop2maf ldi-basic.mafs -minInd 35 -minInd2 40 > basic.mafs
+
+```{r}
+ddxy<-read_tsv("outputs/700/basic.mafs") 
+chromo<-ddxy[str_starts(ddxy$chromo, "NC"),]
+
+outs<-boxplot.stats(chromo$Dxy)$out
+
+dfouts<-chromo %>% filter(Dxy %in% outs)
+```
+
+```{r}
+ggplot(chromo) +
+  geom_point(aes(x=position, y=Dxy), pch=21, alpha=0.5, fill="grey", cex=1) +
+  geom_point(data=dfouts, aes(x=position, y=Dxy), pch=21, alpha=0.75, fill="skyblue",cex=2) +
+  theme(panel.grid=element_blank()) +
+  facet_wrap(.~chromo, scales = "free_x", ncol = 6)
+
+ggsave("outputs/700/dxybasic.jpeg", width=15, height=12)
+```
+
+
+
+#### manual calc
 
 
 

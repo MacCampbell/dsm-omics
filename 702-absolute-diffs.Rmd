@@ -25,6 +25,13 @@ srun -p bigmemh -t 1-18:00:00 --mem=32G --nodes=1 $HOME/angsd/angsd -nThreads 6 
 Convert plink to vcf 
 
 ```{sh, eval=FALSE}
+ln -s test91.tfam ./plink.tfam
+ln -s test91.tped ./plink.tped
 plink --tped plink.tped --tfam plink.tfam  --out binary --recode --allow-extra-chr --noweb
 plink --ped binary.ped --map binary.map --recode vcf --allow-extra-chr -out recode
 ```
+
+
+1015189 variants and 91 people pass filters and QC.
+
+```{r}
