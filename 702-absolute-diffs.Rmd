@@ -9,6 +9,10 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
 ```
 
+```{r}
+library(tidyverse)
+```
+
 ## Absolute Difference
 
 Looking at absolute allele frequency differences. Calling genotypes across fish.
@@ -44,4 +48,320 @@ kept96 %>% group_by(CrossType) %>% summarize(Count=n())
 ```{r}
 samples<-kept96 %>% select(`Sample name`)
 write_tsv(samples, col_names = FALSE, "meta/samples91.tsv")
+
+write_tsv(kept96 %>% filter(CrossType=="HDI") %>% select(`Sample name`), col_names = FALSE, "meta/samples91-HDI.tsv")
+write_tsv(kept96 %>% filter(CrossType=="LDI") %>% select(`Sample name`), col_names = FALSE, "meta/samples91-LDI.tsv")
+```
+
+Can filter:     
+_1_ biallelic     
+_2_ Genotype call in the vcf for more then 40% of the individuals.      
+_3_ Minor allele freq > 0.05
+
+```{sh, eval=FALSE}
+vcftools --vcf outputs/702/recode.vcf --min-alleles 2 --max-alleles 2 --max-missing 0.4 --maf 0.05 --out outputs/702/recode-filtered --recode
+```
+After filtering, kept 963923 out of a possible 1015189 Sites    
+
+Can reheader:    
+
+```{sh, eval=FALSE}
+bcftools reheader --samples meta/samples91.tsv -o outputs/702/filtered-renamed.vcf outputs/702/recode-filtered.recode.vcf
+```
+
+Spliting    
+```{sh, eval=FALSE}
+bcftools view -S meta/samples91-HDI.tsv outputs/702/filtered-renamed.vcf > outputs/702/HDI.vcf
+bcftools view -S meta/samples91-LDI.tsv outputs/702/filtered-renamed.vcf > outputs/702/LDI.vcf
+```
+
+Impute?
+
+Calc freqs
+```{sh, eval=FALSE}
+vcftools --vcf outputs/702/HDI.vcf --freq --out outputs/702/HDI
+vcftools --vcf outputs/702/LDI.vcf --freq --out outputs/702/LDI
+```
+
+### Comparing Freqs
+
+```{r}
+freq1<-read_tsv("outputs/702/HDI.frq", skip = 1, col_names = FALSE) %>% 
+  rename(Chromosome=X1, Position=X2, NAllelesHDI=X3, NHDI=X4, Major=X5, Minor=X6) %>%
+  separate(Major, into=c("Major","MajorFrequencyHDI"), sep=":") %>% separate(Minor, into=c("Minor","MinorFrequencyHDI"), sep=":")
+freq1$MajorFrequencyHDI<-as.numeric(freq1$MajorFrequencyHDI)
+freq1$MinorFrequencyHDI<-as.numeric(freq1$MinorFrequencyHDI)
+
+freq2<-read_tsv("outputs/702/LDI.frq", skip = 1, col_names = FALSE) %>% 
+  rename(Chromosome=X1, Position=X2, NAlleles=X3, N=X4, Major=X5, Minor=X6)%>%
+  separate(Major, into=c("Major","MajorFrequency"), sep=":") %>% separate(Minor, into=c("Minor","MinorFrequency"), sep=":")
+freq2$MajorFrequency<-as.numeric(freq2$MajorFrequency)
+freq2$MinorFrequency<-as.numeric(freq2$MinorFrequency)
+
+
+comb<-left_join(freq2, freq1)
+```
+
+```{r}
+merge<-comb %>% mutate(AbsoluteDifference=abs(MajorFrequencyHDI-MajorFrequency)) %>% 
+  select(Chromosome, Position, Major, Minor, MajorFrequency, MinorFrequency, MajorFrequencyHDI,
+         MinorFrequencyHDI, AbsoluteDifference, N, NHDI) %>% 
+  filter(N > (40*2), NHDI > (35*2)) %>% arrange(-AbsoluteDifference)
+
+write_csv(merge,"outputs/702/diffs.csv")
+
+merge
+```
+
+
+
+### Imputation version?
+java -jar ~/bin/beagle.27Jan18.7e1.jar gl=, don't have GL field. using GT.
+
+```{sh, eval=FALSE}
+srun -p high -t 2:00:00 --nodes=1 java -jar ~/bin/beagle.27Jan18.7e1.jar gt=outputs/702/HDI.vcf out=outputs/702/HDI-imputed > outputs/702/hi-imp.out 2> outputs/702/lo-imp.stderr &
+
+srun -p high -t 2:00:00 --nodes=1 java -jar ~/bin/beagle.27Jan18.7e1.jar gt=outputs/702/LDI.vcf out=outputs/702/LDI-imputed > outputs/702/ldi-imp.out 2> outputs/702/ldi-imp.stderr &
+```
+
+This may take a while. Defaults:     
+window=<markers per window>                        (default=50000)       
+overlap=<overlap between windows>                  (default=3000)       
+
+Here are some sites to be interested in
+```{r}
+cs<-c("NC_061062.1","NC_061064.1","NC_061065.1","NC_061065.1")
+ps<-c(12081162,2535255,13099447,13101117)
+
+int<-cbind(cs,ps) %>% as_tibble() %>% rename(chromo=cs, position=ps)
+int$position<-as.numeric(int$position)
+int %>% mutate(minus=position-100000, plus=position+100000)
+```
+
+```{sh, eval=FALSE}
+bcftools view -S meta/samples91-HDI.tsv -r NC_061062.1:11981162-12181162,NC_061064.1:2435255-2635255,NC_061065.1:12999447-13201117 \
+  outputs/702/filtered-renamed.vcf.gz > outputs/702/HDI-sub.vcf
+  
+bcftools view -S meta/samples91-LDI.tsv -r NC_061062.1:11981162-12181162,NC_061064.1:2435255-2635255,NC_061065.1:12999447-13201117 \
+    outputs/702/filtered-renamed.vcf.gz > outputs/702/LDI-sub.vcf
+
+
+srun -p high -t 2:00:00 --nodes=1 java -jar ~/bin/beagle.27Jan18.7e1.jar gt=outputs/702/HDI-sub.vcf out=outputs/702/HDI-sub-imputed \
+>outputs/702/hdi-sub-impute.stdout 2>outputs/702/hdi-sub-impute.stderr &
+
+srun -p high -t 2:00:00 --nodes=1 java -jar ~/bin/beagle.27Jan18.7e1.jar gt=outputs/702/LDI-sub.vcf out=outputs/702/LDI-sub-imputed \
+>outputs/702/ldi-sub-impute.stdout 2>outputs/702/ldi-sub-impute.stderr &
+
+```
+Calc freq
+```{sh, eval=FALSE}
+vcftools --gzvcf outputs/702/HDI-sub-imputed.vcf.gz --freq --out outputs/702/HDI-sub-imputed
+vcftools --gzvcf outputs/702/LDI-sub-imputed.vcf.gz --freq --out outputs/702/LDI-sub-imputed
+```
+
+1344 sites in both files.    
+
+
+```{r}
+freq1<-read_tsv("outputs/702/HDI-sub-imputed.frq", skip = 1, col_names = FALSE) %>% 
+  rename(Chromosome=X1, Position=X2, NAllelesHDI=X3, NHDI=X4, Major=X5, Minor=X6) %>%
+  separate(Major, into=c("Major","MajorFrequencyHDI"), sep=":") %>% separate(Minor, into=c("Minor","MinorFrequencyHDI"), sep=":")
+freq1$MajorFrequencyHDI<-as.numeric(freq1$MajorFrequencyHDI)
+freq1$MinorFrequencyHDI<-as.numeric(freq1$MinorFrequencyHDI)
+
+freq2<-read_tsv("outputs/702/LDI-sub-imputed.frq", skip = 1, col_names = FALSE) %>% 
+  rename(Chromosome=X1, Position=X2, NAlleles=X3, N=X4, Major=X5, Minor=X6)%>%
+  separate(Major, into=c("Major","MajorFrequency"), sep=":") %>% separate(Minor, into=c("Minor","MinorFrequency"), sep=":")
+freq2$MajorFrequency<-as.numeric(freq2$MajorFrequency)
+freq2$MinorFrequency<-as.numeric(freq2$MinorFrequency)
+
+
+comb<-left_join(freq2, freq1)
+```
+
+```{r}
+merge<-comb %>% mutate(AbsoluteDifference=abs(MajorFrequencyHDI-MajorFrequency)) %>% 
+  select(Chromosome, Position, Major, Minor, MajorFrequency, MinorFrequency, MajorFrequencyHDI,
+         MinorFrequencyHDI, AbsoluteDifference, N, NHDI) %>% 
+  filter(N > (40*2), NHDI > (35*2)) %>% arrange(-AbsoluteDifference)
+
+write_csv(merge,"outputs/702/impute-diffs.csv")
+
+merge
+```
+
+
+```{r}
+diffs<-read_csv("outputs/702/diffs.csv") 
+
+diffs %>% arrange(-AbsoluteDifference) %>% head(n=20)
+```
+     
+```{r}
+diff<-diffs[str_starts(diffs$Chromosome, "NC"),]
+
+ggplot(diff) +
+  geom_point(aes(x=Position, y=AbsoluteDifference), alpha=1) +
+  facet_wrap(~Chromosome, scales="free_x", ncol = 5) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle=45, vjust=1, hjust=1))
+
+ggsave("outputs/702/hdi-ldi-91-abs-diffs.jpeg", width=18, height=12)
+
+``` 
+
+```{r}
+ggplot(merge) +
+  geom_point(aes(x=Position, y=AbsoluteDifference), alpha=1) +
+  facet_wrap(~Chromosome, scales="free_x") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle=45, vjust=1, hjust=1))
+```
+
+
+we are looking for loci that have increased in freq over LDI, so a MajorFrequency HDI > 0.85?
+
+
+Also can use SNPeff to annotate. 
+
+Getting SNPeff
+
+```{sh, eval=FALSE}
+https://snpeff.blob.core.windows.net/versions/snpEff_latest_core.zip
+unzip snpEff_latest_core.zip 
+java -jar doesn't work, something about version of java.
+
+```
+Locally, java -jar snpEff_latest_core/snpEff/snpEff.jar databases > databases.out
+
+We don't have a Hypomesus transpacificus database.  Making my own....
+
+wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/021/917/145/GCF_021917145.1_fHypTra1/GCF_021917145.1_fHypTra1_genomic.gff.gz
+wget https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/021/917/145/GCF_021917145.1_fHypTra1/GCF_021917145.1_fHypTra1_genomic.fna.gz
+https://ftp.ncbi.nlm.nih.gov/genomes/all/GCF/021/917/145/GCF_021917145.1_fHypTra1/GCF_021917145.1_fHypTra1_genomic.gtf.gz
+
+
+Then I have to edit the config file, adding this to the last line: NC_037130.1.genome : NC_037130.1 previously...
+
+now dsm.genome : dsm
+Then at /Users/mac/snpEff_latest_core/snpEff/data/dsm have genome as sequences.fa and gtf as genes.gtf.gz is gtf 2.2 
+
+ /Users/mac/snpEff_latest_core/snpEff/
+java -jar snpEff.jar build -gtf22 -v  dsm
+
+Note: 00:00:48	Warning: Cannot read optional protein sequence file '/Users/mac/snpEff_latest_core/snpEff/./data/dsm/protein.fa', nothing done.
+
+combining separate imputed files
+
+```{sh, eval=FALSE}
+bcftools index outputs/702/HDI-sub-imputed.vcf.gz 
+bcftools index outputs/702/LDI-sub-imputed.vcf.gz 
+bcftools merge -Oz -o outputs/702/combined-sub-imputed.vcf.gz outputs/702/HDI-sub-imputed.vcf.gz outputs/702/LDI-sub-imputed.vcf.gz 
+```
+
+Then locally
+java -jar ~/snpEff_latest_core/snpEff/snpEFF.jar ann -v dsm combined-sub-imputed.vcf.gz  > combined-sub-imputed-variant-annotations.tsv
+grep -v "#" combined-sub-imputed-variant-annotations.tsv > combined-sub-imputed-variant-variant-annotations-clean.tsv
+
+grep NC_061064.1 combined-sub-imputed-variant-variant-annotations-clean.tsv  | grep "_2535255"
+grep NC_061065.1 combined-sub-imputed-variant-variant-annotations-clean.tsv  | grep "_13099447\|13101117\|13104452"
+grep NC_061062.1 combined-sub-imputed-variant-variant-annotations-clean.tsv | grep "_12081162\|_12084306"
+
+
+## Calling with other variants
+```{sh, eval=FALSE}
+srun -p bigmemh -t 16:00:00 --nodes=1 --mem=16G bcftools mpileup --min-BQ 20 --min-MQ 20 -Ou --fasta-ref /home/maccamp/genomes/GCF021917145.1/GCF_021917145.1_fHypTra1_genomic.fna \
+ -r NC_061062.1:11981162-12181162,NC_061064.1:2435255-2635255,NC_061065.1:12999447-13201117 \
+ -b bamlists/test91.bamlist | \
+bcftools call -mv -Ov -o outputs/702/test91-calls.vcf > outputs/702/test91.out 2> outputs/702/test91.err &
+
+#bgzip and bcftools index files, then
+bgzip outputs/702/test91-calls.vcf 
+bcftools index outputs/702/test91-calls.vcf.gz 
+
+srun -p high -t 1:00:00 --nodes=1 bcftools norm -c w outputs/702/test91-calls.vcf.gz  \
+-f /home/maccamp/genomes/GCF021917145.1/GCF_021917145.1_fHypTra1_genomic.fna \
+-Ov -o outputs/702/test91-calls-norm.vcf
+```
+
+Lines   total/split/realigned/skipped:	6152/0/1362/0
+
+Filter and rename
+
+_1_ biallelic     
+_2_ Genotype call in the vcf for more then 40% of the individuals.      
+_3_ Minor allele freq > 0.05
+
+```{sh, eval=FALSE}
+vcftools --vcf outputs/702/test91-calls-norm.vcf --min-alleles 2 --max-alleles 2 --max-missing 0.4 --maf 0.05 --out outputs/702/test91-calls-filtered --recode
+```
+
+After filtering, kept 2239 out of a possible 6152 Sites
+
+Can reheader:    
+
+```{sh, eval=FALSE}
+bcftools reheader --samples meta/samples91.tsv -o outputs/702/test91-calls-filtered-renamed.vcf outputs/702/test91-calls-filtered.recode.vcf 
+```
+
+Spliting    
+```{sh, eval=FALSE}
+bcftools view -S meta/samples91-HDI.tsv outputs/702/test91-calls-filtered-renamed.vcf > outputs/702/HDI-calls.vcf
+bcftools view -S meta/samples91-LDI.tsv outputs/702/test91-calls-filtered-renamed.vcf > outputs/702/LDI-calls.vcf
+```
+
+Imputing using gl     
+```{sh, eval=FALSE}
+srun -p high -t 2:00:00 --nodes=1 java -jar ~/bin/beagle.27Jan18.7e1.jar gl=outputs/702/HDI-calls.vcf out=outputs/702/HDI-calls-imputed \
+>outputs/702/hdi-calls-impute.stdout 2>outputs/702/hdi-calls-impute.stderr &
+
+srun -p high -t 2:00:00 --nodes=1 java -jar ~/bin/beagle.27Jan18.7e1.jar gl=outputs/702/LDI-calls.vcf out=outputs/702/LDI-calls-imputed \
+>outputs/702/ldi-calls-impute.stdout 2>outputs/702/ldi-calls-impute.stderr &
+```
+
+Calc freq
+```{sh, eval=FALSE}
+vcftools --gzvcf outputs/702/HDI-calls-imputed.vcf.gz --freq --out outputs/702/HDI-calls-imputed
+vcftools --gzvcf outputs/702/LDI-calls-imputed.vcf.gz --freq --out outputs/702/LDI-calls-imputed
+```
+
+
+
+```{r}
+freq1<-read_tsv("outputs/702/HDI-calls-imputed.frq", skip = 1, col_names = FALSE) %>% 
+  rename(Chromosome=X1, Position=X2, NAllelesHDI=X3, NHDI=X4, Major=X5, Minor=X6) %>%
+  separate(Major, into=c("Major","MajorFrequencyHDI"), sep=":") %>% separate(Minor, into=c("Minor","MinorFrequencyHDI"), sep=":")
+freq1$MajorFrequencyHDI<-as.numeric(freq1$MajorFrequencyHDI)
+freq1$MinorFrequencyHDI<-as.numeric(freq1$MinorFrequencyHDI)
+
+freq2<-read_tsv("outputs/702/LDI-calls-imputed.frq", skip = 1, col_names = FALSE) %>% 
+  rename(Chromosome=X1, Position=X2, NAlleles=X3, N=X4, Major=X5, Minor=X6)%>%
+  separate(Major, into=c("Major","MajorFrequency"), sep=":") %>% separate(Minor, into=c("Minor","MinorFrequency"), sep=":")
+freq2$MajorFrequency<-as.numeric(freq2$MajorFrequency)
+freq2$MinorFrequency<-as.numeric(freq2$MinorFrequency)
+
+
+comb<-left_join(freq2, freq1)
+```
+
+```{r}
+merge<-comb %>% mutate(AbsoluteDifference=abs(MajorFrequencyHDI-MajorFrequency)) %>% 
+  select(Chromosome, Position, Major, Minor, MajorFrequency, MinorFrequency, MajorFrequencyHDI,
+         MinorFrequencyHDI, AbsoluteDifference, N, NHDI) %>% 
+  filter(N > (40*2), NHDI > (35*2)) %>% arrange(-AbsoluteDifference)
+
+write_csv(merge,"outputs/702/calls-impute-diffs.csv")
+
+merge
+```
+
+Most of these are SNPS
+
+
+```{r}
+ggplot(merge) +
+  geom_point(aes(x=Position, y=AbsoluteDifference), alpha=1) +
+  facet_wrap(~Chromosome, scales="free_x") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle=45, vjust=1, hjust=1))
 ```

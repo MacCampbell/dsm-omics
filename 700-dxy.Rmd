@@ -392,6 +392,75 @@ ggsave("outputs/700/dxybasic.jpeg", width=15, height=12)
 
 
 #### manual calc
+first, some interesting sites
+
+```{r}
+cs<-c("NC_061062.1","NC_061064.1","NC_061065.1","NC_061065.1")
+ps<-c(12081162,2535255,13099447,13101117)
+
+int<-cbind(cs,ps) %>% as_tibble() %>% rename(chromo=cs, position=ps)
+int$position<-as.numeric(int$position)
+int
+```
+
+
+```{r}
+hi<-read_tsv("outputs/700/hdi-basic.mafs") %>% rename(MajorHi=major, MinorHi=minor, EmHi=knownEM, HiInd=nInd) %>% select(-`pK-EM`)
+
+lo<-read_tsv("outputs/700/ldi-basic.mafs") %>% rename(MajorLo=major, MinorLo=minor, EmLo=knownEM, LoInd=nInd) %>% select(-`pK-EM`)
+
+hi
+```
+
+```{r}
+inner<-inner_join(hi,lo) %>% filter(MajorHi!=MajorLo) 
+left_join(int, inner)
+```
+
+Make the same
+```{r}
+mafs<-inner_join(hi,lo ) %>% mutate(NewLo=ifelse(MajorHi != MajorLo, 1-EmLo, EmLo)) %>%
+  mutate(Dxy= (EmHi * (1-NewLo)) + (NewLo * (1-EmHi)) ) %>% 
+  mutate(Abs=abs(EmHi-NewLo)) %>%
+  filter(HiInd > 35) %>% filter(LoInd > 40)
+mafs
+```
+
+```{r}
+left_join(int,mafs)
+```
+
+From script
+
+```{r}
+ddxy
+```
+
+Creating figure.....
+
+```{r}
+chrom<-mafs[str_starts(mafs$chromo, "NC"),]
+
+out<-boxplot.stats(chrom$Dxy)
+
+dfout<-chrom %>% filter(Dxy %in% out)
+```
+
+```{r}
+ggplot(chrom) +
+  geom_point(aes(x=position, y=Dxy), pch=21, alpha=0.5, fill="grey", cex=1) +
+  geom_point(data=dfout, aes(x=position, y=Dxy), pch=21, alpha=0.75, fill="skyblue",cex=2) +
+  theme(panel.grid=element_blank()) +
+  facet_wrap(.~chromo, scales = "free_x", ncol = 6) +
+  ylim(0,1)
+
+ggsave("outputs/700/dxybasic-coded-calc.jpeg", width=15, height=12)
+```
+
+
+```{r}
+mafs %>% arrange(-Dxy)
+```
 
 
 

@@ -108,14 +108,4 @@ ggsave("outputs/703/hdi-ldi-91-GWAS.jpeg", width=18, height=12)
 df
 ```
 
-dxy=0.733253522944
-(base) maccamp@farm:~/dsm-omics/outputs/700$ grep 2535255 all-chroms-LDI-intersect.mafs 
-NC_061064.1	2535255	C	G	G	0.193938	0.000000e+00	49
-(base) maccamp@farm:~/dsm-omics/outputs/700$ grep 2535255 all-chroms-HDI-intersect.mafs 
-NC_061064.1	2535255	G	C	G	0.118944	0.000000e+00	42
-
-dxy=0.720350741416
-(base) maccamp@farm:~/dsm-omics/outputs/700$ grep 15990424 all-chroms-HDI-intersect.mafs 
-NC_061061.1	15990424	A	T	A	0.179706	0.000000e+00	42
-(base) maccamp@farm:~/dsm-omics/outputs/700$ grep 15990424 all-chroms-LDI-intersect.mafs 
-NC_061061.1	15990424	T	A	A	0.156018	0.000000e+00	44
+### Should some other type of GWAS be considered?

@@ -83,4 +83,6 @@ Should set up a script to run realSFS, see 701.1-sfs.sh, can execute with srun.
 
 You know, I could do per chromosome fst, this wants a lot of memory!
 
- srun -p bigmemh -t 2:00:00 --nodes=1 --mem=32G  bash 701.1-sfs.sh > outputs/701/sfs.stdout 2> outputs/701/sfs.stderr &
+ srun -p bigmemh -t 1-2:00:00 --nodes=1 --mem=32G  bash 701.1-sfs.sh > outputs/701/sfs.stdout 2> outputs/701/sfs.stderr &
+
+Only finished 5 chroms in 2 hrs, 
