@@ -30,8 +30,18 @@ ln -s test91.tped ./plink.tped
 plink --tped plink.tped --tfam plink.tfam  --out binary --recode --allow-extra-chr --noweb
 plink --ped binary.ped --map binary.map --recode vcf --allow-extra-chr -out recode
 ```
-
-
 1015189 variants and 91 people pass filters and QC.
 
+
+### Get Samples
 ```{r}
+kept96<-read_tsv("meta/kept96.tsv")
+kept96 %>% group_by(CrossType) %>% summarize(Count=n())
+```
+
+
+
+```{r}
+samples<-kept96 %>% select(`Sample name`)
+write_tsv(samples, col_names = FALSE, "meta/samples91.tsv")
+```
