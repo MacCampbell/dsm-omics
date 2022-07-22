@@ -23,9 +23,9 @@ realSFS fst stats outputs/701/$chrom-hdi-ldi.fst.idx > outputs/701/$chrom-hdi-ld
 realSFS fst stats2  outputs/701/$chrom-hdi-ldi.fst.idx -win 50000 -step 10000 >  outputs/701/$chrom-sliding-window-50k-10k
 
 
- " > $chrom-fst.sh
+ " > outputs/701/$chrom-fst.sh
   
-sbatch -p med -t 24:00:00 --mem=16G --nodes=1 $chrom-fst.sh
+sbatch -p med -t 24:00:00 --mem=16G --nodes=1 outputs/701/$chrom-fst.sh
 
 done < $chromlist
 
