@@ -5,6 +5,7 @@
 
 # Usage
 # 701.1-sfs.sh chromlist.txt
+# 701.1-sfs.sh meta/1mbseqs.txt
 
 chromlist=$1
 
