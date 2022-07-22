@@ -81,8 +81,15 @@ Completed runs....
 Should set up a script to run realSFS, see 701.1-sfs.sh, can execute with srun.
 (base) maccamp@farm:~/dsm-omics$ srun -p high -t 2:00:00 --nodes=1 bash 701.1-sfs.sh > outputs/701/sfs.stdout 2> outputs/701/sfs.stderr &
 
-You know, I could do per chromosome fst, this wants a lot of memory!
+You know, I could do per chromosome fst, this wants a lot of memory!      
+Set up per chromosome runs. Works.      
 
- srun -p bigmemh -t 1-2:00:00 --nodes=1 --mem=32G  bash 701.1-sfs.sh > outputs/701/sfs.stdout  2> outputs/701/sfs.stderr &
+realSFS fst stats2  outputs/701/$chrom-hdi-ldi.fst.idx -win 50000 -step 10000      
+(base) maccamp@farm:~/dsm-omics/outputs/701$ wc -l NC_061060.1-sliding-window-50k-10k     
+1247 NC_061060.1-sliding-window-50k-10k
 
-Only finished 5 chroms in 2 hrs, then job was killed? Other job was terminated mysteriously. Sigh. 
+What's a reasonable window? Halving and quartering.
+
+
+
+
