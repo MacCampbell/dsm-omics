@@ -196,4 +196,50 @@ dd
 dd %>% left_join(diffs)
 ```
 
+```{r}
+nb.cols2 <- length(unique(data2$Chromosome))
+mycolors2 <- colorRampPalette(brewer.pal(8, "Set1"))(nb.cols2)
+#randomize
+mycolors2<-sample(mycolors2)
+ggplot(data2 %>% filter(Chromosome != "NC_061068.1")) +
+  geom_point(aes(x=Position, y=log10p, color=Chromosome), alpha=0.75, cex=0.5) +
+#  geom_hline(yintercept= 8, col="black", linetype=1, alpha=0.5) +
+ # geom_hline(yintercept = -log10(0.05/nrow(dddf)), col="black", linetype=2, alpha=0.5) +
+#  scale_x_continuous(breaks=chroms$Position, labels=chroms$Chromosome) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle=45, hjust = 1, face="bold", size=8)) +
+  theme(legend.title = element_blank()) +
+  theme(panel.grid = element_blank()) +
+  theme(legend.position = "none") +
+  scale_color_manual(values=mycolors2) +
+  ylab("-log10(p)\n") +
+  xlab("\nChromosome") +
+  ggtitle("HDI vs LDI") +
+  theme(plot.title = element_text(hjust=0.5) ) +
+  theme(plot.subtitle = element_text(hjust=0.5)) +
+  facet_wrap(.~Chromosome, ncol=5, scales="free_x") +
+  theme(axis.ticks.x = element_blank(), axis.text.x = element_blank())
+
+ggsave("outputs/705/hdi-ldi-91-GWAS-doasso2-cov.jpeg", width=18, height=12)
 ```
+
+(base) Macs-MacBook-Pro-2:705 mac$ gunzip -c NC_061071.1-asso.lrt0.gz | sort -k 7 -n | tail
+NC_061071.1	8151143	A	G	0.394943	91	13.704303	30/50/10
+NC_061071.1	9083584	G	C	0.341199	91	13.802503	35/48/7
+NC_061071.1	9072551	T	A	0.346679	91	13.892051	38/43/10
+NC_061071.1	8785907	T	G	0.134489	91	14.829907	60/17/0
+NC_061071.1	5367302	C	A	0.369849	91	15.391473	30/53/7
+NC_061071.1	5137303	C	T	0.119288	91	15.797408	61/13/0
+NC_061071.1	5367170	A	G	0.316937	91	15.928157	37/47/4
+NC_061071.1	310820	T	G	0.421038	91	19.589011	36/22/20
+NC_061071.1	310876	A	G	0.203316	91	29.559188	57/18/7
+NC_061071.1	310973	T	C	0.202937	91	36.685986	55/18/7
+(base) Macs-MacBook-Pro-2:705 mac$ gunzip -c NC_061071.1-asso.lrt0.gz | sort -k 7 -n | tail | cut -f 2 | while read line; do grep $line ../70
+700/ 701/ 702/ 703/ 705/ 
+(base) Macs-MacBook-Pro-2:705 mac$ gunzip -c NC_061071.1-asso.lrt0.gz | sort -k 7 -n | tail | cut -f 2 | while read line; do grep $line ../702/diffs.csv ; done;
+NC_061071.1,8151143,A,G,0.673469,0.326531,0.536585,0.463415,0.136884,98,82
+NC_061071.1,9083584,G,C,0.59375,0.40625,0.743902,0.256098,0.15015199999999995,96,82
+NC_061071.1,9072551,T,A,0.77551,0.22449,0.511905,0.488095,0.263605,98,84
+NC_061071.1,5367302,C,A,0.693878,0.306122,0.54878,0.45122,0.14509799999999995,98,82
+NC_061071.1,5367170,A,G,0.760417,0.239583,0.615385,0.384615,0.14503200000000005,96,78
+NC_061071.1,310876,A,G,0.906977,0.0930233,0.692308,0.307692,0.214669,86,78
