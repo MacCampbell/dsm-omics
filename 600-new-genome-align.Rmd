@@ -399,7 +399,7 @@ pca_pairs <- dplyr::left_join(expg, pca_long, by = c("sample", "PCx" = "PC")) %>
 pp_meta <- pca_pairs %>%   # just keep the first 6 PCs around
   left_join(., kept, by = c("sample" = "Individual")) 
 
-npc <- 3
+npc <- 6
 pp_meta2 <- pp_meta %>%
   filter( (PCx %in% sprintf("PC-%02d", 1:npc)) & 
             (PCy %in% sprintf("PC-%02d", 1:npc)) )
@@ -415,8 +415,15 @@ ggplot(pp_meta2) +
   facet_grid (PCx ~ PCy)
 
 ```
-    
-    
+
+Set up for GWAS
+```{r}
+untidy<-pp_meta %>% select(sample, `Sample name`, CrossType, PCx, val_x) %>% unique() %>% pivot_wider(names_from = PCx, values_from = val_x)
+untidy
+
+write_tsv(untidy %>% select(starts_with("PC")), "meta/test91-pcs.tsv", col_names = FALSE)
+```
+
 ```{r}
 sub12<-pp_meta2 %>% filter( (PCx =="PC-01") & (PCy =="PC-02") )
 
