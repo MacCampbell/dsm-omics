@@ -155,5 +155,45 @@ NW_025814038.1	233591	T	C	0.425769	91	33.447693	32/30/22
 
 Note: (base) maccamp@farm:~/dsm-omics/outputs/706$ sq | grep "launch failed" | awk '{print $1}' | while read line; do scontrol release $line; done;
 
+Huge, impact of covariates, then in 705:
+```{sh, eval=FALSE}
+bash $HOME/dsm-omics/703.2-doAsso2-withCov.sh $HOME/dsm-omics/bamlists/test91.bamlist  $HOME/dsm-omics/meta/1mbseqs.txt  $HOME/dsm-omics/meta/test91.pheno $HOME/dsm-omics/meta/test91-pcs.tsv
+```
 
 
+Show change in allele freqs, gwas scores.
+
+```{r}
+chroms<-read_tsv("meta/nctochrom.txt")
+```
+
+```{r}
+files2 = list.files(path="outputs/705/", pattern="*.lrt0.gz", full.names = TRUE)
+list2 = lapply(files2, read_tsv)
+data2<-bind_rows(list2) %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
+  filter(log10p>=0 & log10p != "Inf") %>%
+  mutate(p = dchisq(LRT, df=1)) %>%
+  mutate(bonfer = p.adjust(p, method = "bonferroni")) %>% 
+  mutate(BHfdr = p.adjust(p, method = "BH")) %>%
+  group_by(Chromosome) %>%
+  mutate(adjpchrom = p.adjust(p, method = "bonferroni")) %>%
+  mutate(BHfdrchrom = p.adjust(p, method = "BH"))
+
+top2<-data2 %>% arrange(-LRT) %>% head(n=20)
+top2
+```
+
+
+```{r}
+diffs<-read_csv("outputs/702/diffs.csv") %>% mutate(Diff=MajorFrequencyHDI-MajorFrequency)
+```
+```{r}
+dd<-top2 %>% select(Chromosome, Position, LRT)
+dd
+```
+
+```{r}
+dd %>% left_join(diffs)
+```
+
+```
