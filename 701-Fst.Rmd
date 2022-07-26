@@ -88,8 +88,19 @@ realSFS fst stats2  outputs/701/$chrom-hdi-ldi.fst.idx -win 50000 -step 10000
 (base) maccamp@farm:~/dsm-omics/outputs/701$ wc -l NC_061060.1-sliding-window-50k-10k     
 1247 NC_061060.1-sliding-window-50k-10k
 
-What's a reasonable window? Halving and quartering.
+What's a reasonable window? Halving and quartering (double and quadruple outputs)
 
+(base) maccamp@farm:~/dsm-omics/outputs/701$ wc -l NC_061060.1-sliding-window*
+  4997 NC_061060.1-sliding-window-12.5k-2.5k
+  2499 NC_061060.1-sliding-window-25k-5k
+  1247 NC_061060.1-sliding-window-50k-10k
 
+Looking at       
+  chromo      position      
+  <chr>          <dbl>     
+1 NC_061062.1 12081162     
+2 NC_061064.1  2535255    
+3 NC_061065.1 13099447    
+4 NC_061065.1 13101117   
 
 

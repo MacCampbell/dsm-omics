@@ -14,6 +14,8 @@ knitr::opts_chunk$set(echo = TRUE,warning=FALSE,message=FALSE)
 library(tidyverse)
 library(viridis)
 library(data.table)
+library(ggrepel)
+library(RcppCNPy)
 ```
 
 Old data mv *bam *bai *cov *sh *out /group/millermrgrp4/maccamp/smelt-wgs/original-alignments/     
@@ -83,6 +85,7 @@ meta %>% group_by(`library number`) %>%
 ```
 
 ```{r}
+meta$Coverage<-as.numeric(meta$Coverage)
 ggplot(meta) +
   geom_histogram(aes(Coverage, fill=`library number`)) +
   theme_bw() +
@@ -96,6 +99,7 @@ Similar coverage overall!!
 
 Coverage excluding epi samples
 ```{r}
+sum$Coverage<-as.numeric(sum$Coverage)
 ggplot(sum) +
   geom_histogram(aes(Coverage, fill=`library number`)) +
   theme_bw() +

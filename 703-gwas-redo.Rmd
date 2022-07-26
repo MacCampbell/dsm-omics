@@ -109,3 +109,10 @@ df
 ```
 
 ### Should some other type of GWAS be considered?
+
+I think we can use the covariance matrix as covariates as there is some sort of pattern to it. -cov?   
+The covariance matrix to use is outputs/601/test96-kinremoved.cov, putting in outputs/704
+
+```{sh, eval=FALSE}
+bash $HOME/dsm-omics/703.1-gwas-with-cov.sh $HOME/dsm-omics/bamlists/test91.bamlist  $HOME/dsm-omics/meta/1mbseqs.txt $HOME/dsm-omics/meta/test91.pheno $HOME/dsm-omics/outputs/601/test96-kinremoved.cov
+```
