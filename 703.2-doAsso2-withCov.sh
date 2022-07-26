@@ -22,7 +22,7 @@ while read chrom; do
   -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 -r $chrom -out $chrom-asso \
   -bam $bamlist  > $chrom-asso.out 2> $chrom-asso.err " > $chrom-asso.sh
   
-sbatch -p bigmemm -t 12:00:00 --mem=32G --nodes=2 $chrom-asso.sh
+sbatch -p bigmemh -t 12:00:00 --mem=32G --nodes=1 $chrom-asso.sh
 
 done < $list
 

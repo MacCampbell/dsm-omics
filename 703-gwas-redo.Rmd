@@ -119,6 +119,41 @@ bash $HOME/dsm-omics/703.1-gwas-with-cov.sh $HOME/dsm-omics/bamlists/test91.baml
 ```
 
 This doesn't appear to have any change.
-
 "If you have population structure then you will have to adjust for it in the regression model (-doAssso 2, 4, 5 or 6)"
+
+in 705:
+```{sh, eval=FALSE}
+bash $HOME/dsm-omics/703.2-doAsso2-withCov.sh $HOME/dsm-omics/bamlists/test91.bamlist  $HOME/dsm-omics/meta/NW.txt $HOME/dsm-omics/meta/test91.pheno $HOME/dsm-omics/meta/test91-pcs.tsv
+gunzip -c NW_025814038.1-asso.lrt0.gz | sort -k 7 -n | tail
 ```
+NW_025814038.1	988254	C	A	0.209129	91	10.268268	56/32/3
+NW_025814038.1	995938	G	T	0.191798	91	10.392671	56/33/0
+NW_025814038.1	150139	A	G	0.327012	91	10.904456	43/36/10
+NW_025814038.1	560896	T	C	0.337711	91	11.725648	40/39/8
+NW_025814038.1	926467	T	G	0.374247	91	12.018893	33/48/10
+NW_025814038.1	797165	G	A	0.355692	91	12.504225	34/48/8
+NW_025814038.1	679325	C	T	0.175040	91	12.620963	59/31/0
+NW_025814038.1	679705	C	G	0.200590	91	12.636778	59/26/4
+NW_025814038.1	564770	C	A	0.335899	91	13.280115	38/45/8
+NW_025814038.1	608105	T	C	0.091301	91	14.028644	61/12/0
+
+in 706 (no covariate):     
+```{sh, eval=FALSE}
+bash $HOME/dsm-omics/703.3-doAsso2.sh $HOME/dsm-omics/bamlists/test91.bamlist  $HOME/dsm-omics/meta/NW.txt $HOME/dsm-omics/meta/test91.pheno
+gunzip -c NW_025814038.1-asso.lrt0.gz | sort -k 7 -n | tail
+```
+NW_025814038.1	996139	C	T	0.193330	91	28.011694	56/33/1
+NW_025814038.1	679705	C	G	0.200590	91	28.069243	59/26/4
+NW_025814038.1	995393	C	A	0.192474	91	28.181779	57/33/1
+NW_025814038.1	990742	T	A	0.193996	91	28.425642	57/32/1
+NW_025814038.1	679325	C	T	0.175040	91	28.806605	59/31/0
+NW_025814038.1	995938	G	T	0.191798	91	28.994266	56/33/0
+NW_025814038.1	988254	C	A	0.209129	91	30.029809	56/32/3
+NW_025814038.1	149817	A	G	0.499751	91	30.419134	29/33/28
+NW_025814038.1	150139	A	G	0.327012	91	31.711962	43/36/10
+NW_025814038.1	233591	T	C	0.425769	91	33.447693	32/30/22
+
+Note: (base) maccamp@farm:~/dsm-omics/outputs/706$ sq | grep "launch failed" | awk '{print $1}' | while read line; do scontrol release $line; done;
+
+
+
