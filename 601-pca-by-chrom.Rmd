@@ -1,0 +1,221 @@
+---
+title: "601-pca-by-chrom"
+author: "Mac Campbell"
+date: "8/12/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+```
+
+```{r}
+library(tidyverse)
+library(RColorBrewer)
+library(vcfR)
+library(adegenet)
+library(ggrepel)
+```
+
+
+## Chrom by chrom PCS to see if there is signal on a particular chrom. I suspect lg26/NC_061085.1
+
+
+I can use genotype calls, outputs/702/filtered-renamed.vcf. Then splitting into separate files.   
+
+```{sh, eval=FALSE}
+bgzip filtered-renamed.vcf
+tabix filtered-renamed.vcf.gz
+cat ../../meta/1mbseqs.txt | while read line; do bcftools view -Ob -r $line filtered-renamed.vcf.gz > $line.bcf; done;
+for f in *.bcf; do bcftools index $f; done;
+```
+
+Get samples table together
+```{r}
+meta91<-read_tsv("meta/kept96.tsv")
+samples<-meta91 %>% select(`Sample name`, DI)
+write.table(samples, file="outputs/601/sample_info.tsv", row.names = FALSE)
+```
+
+put bcf and bcf.csi in local
+
+in `/Users/mac/github/local_pca/templated` :
+
+./run_lostruct.R -i /Users/mac/github/dsm-omics/outputs/601/local -t snp -s 100 -m 4 -I /Users/mac/github/dsm-omics/outputs/601/sample_info.tsv -j 601
+
+Rscript -e 'templater::render_template("summarize_run.Rmd:",output="lostruct_results/type_snp_size_100_weights_none_jobid_601/run_summary.html",change.rootdir=TRUE)'
+
+./run_lostruct.R -i /Users/mac/github/dsm-omics/outputs/601/local -t bp -s 10000 -m 4 -I /Users/mac/github/dsm-omics/outputs/601/sample_info.tsv -j 601bp
+ 
+```{r}
+mds<-read_csv("~/github/local_pca/templated/lostruct_results/type_snp_size_100_weights_none_jobid_601/mds_coords.csv")
+#make tidy
+tidymds<-mds %>% gather(MDS, Value, 3:6)
+MDS1<-filter(tidymds, MDS=="MDS1") %>% rename(MDS1=MDS) %>% rename(Value1=Value)
+MDS2<-filter(tidymds, MDS=="MDS2") %>% rename(MDS2=MDS) %>% rename(Value2=Value)
+MDS3<-filter(tidymds, MDS=="MDS3") %>% rename(MDS3=MDS) %>% rename(Value3=Value)
+MDS4<-filter(tidymds, MDS=="MDS4") %>% rename(MDS4=MDS) %>% rename(Value4=Value)
+
+p1<-MDS1 %>% mutate(Index=1:n())
+
+out <- boxplot.stats(p1$Value1)$out
+out_ind <- which(p1$Value1 %in% c(out))
+outliers<-p1[out_ind,]
+```
+```{r}
+ggplot(outliers) + geom_point(aes(x=window, y=Value1)) + facet_wrap(.~chrom)
+```
+
+
+```{r}
+chroms<-p1 %>% group_by(chrom) %>% mutate(Start=min(Index), Stop=max(Index)) %>% select(chrom,Start,Stop) %>% unique() %>% 
+  mutate(Position=round((Start+Stop)/2))
+
+#Make enough colors
+nb.cols <- nrow(chroms)
+mycolors <- colorRampPalette(brewer.pal(8, "Set1"))(nb.cols)
+
+
+#Hmm.. I should be able to include a bunch of rectangles to offset chroms
+ggplot(p1) +
+  geom_rect(data=chroms, aes(xmin=Start, xmax=Stop, ymin=min(p1$Value1), ymax=max(p1$Value1)), fill=mycolors, alpha=0.25) +
+  geom_point(data=p1, aes(x=Index, y=Value1, color=chrom), alpha=0.75, cex=0.5) +
+  geom_point(data=outliers, aes(x=Index, y=Value1), color="black", cex=0.5) +
+  theme_bw() +
+  scale_x_continuous(breaks=chroms$Position, labels=chroms$chrom) +
+  theme(axis.text.x = element_text(angle=45, hjust = 1, face="bold", size=6)) +
+  theme(legend.title = element_blank()) +
+  theme(panel.grid = element_blank()) +
+  theme(legend.position = "none") +
+  scale_color_manual(values=mycolors) +
+  ylab("MDS1") +
+  xlab("Chromosome")
+```
+
+plink --vcf NC_061085.1.vcf --r2 inter-chr --ld-window-r2 0.5 --out NC_061085.1.ldf --allow-extra-chr --double-id
+
+```{r, eval=FALSE}
+lg26<-read.delim("outputs/601/NC_061085.1.ldf.ld",sep="",stringsAsFactors=FALSE) %>% as_tibble() %>% arrange(R2) %>% 
+  filter(R2 >0.5)
+
+ggplot(lg26) +
+  geom_point(aes(x=BP_A, y=BP_B, color=R2), alpha=0.5) +
+  scale_color_gradient(low="khaki1", high="red") + 
+  theme_bw()
+
+ggsave("outputs/601/lg26-lg.pdf")
+```
+
+## Set up PCA of vcfs
+
+Make separate vcfs
+```{sh, eval=FALSE}
+cat ../../meta/1mbseqs.txt | while read line; do bcftools view -Ov -r $line filtered-renamed.vcf.gz > $line.vcf; done;
+```
+
+
+Make PCAs and save:
+```{r}
+vcfs<-list.files(path="outputs/601", pattern=".1.vcf", full.names=TRUE)
+vcfs
+```
+
+```{r}
+makepc<-function(vcffile,metavector) {
+vcf<-read.vcfR(file=vcffile)
+genind<-vcfR2genind(vcf)
+genind@pop<-as.factor(metavector)
+gen<-genind
+X <- tab(gen, NA.method="mean")
+
+pca1 <- dudi.pca(X,scannf=FALSE,scale=FALSE,nf=3)
+df<-as_tibble(pca1$li)
+df$Type<-as.factor(metavector)
+var<-pca1$eig/sum(pca1$eig)
+df <- df %>% mutate(File=gsub("outputs/601/","",vcffile))
+
+ggplot(df) +
+  geom_point(aes(x=Axis1, y=Axis2, color=Type)) +
+  xlab(paste("PC1", " ", round((100*var[1]),2), "%", sep = "")) +
+  ylab(paste("PC2", " ", round((100*var[2]),2), "%", sep = "")) +
+  theme_bw() +
+  ggtitle(gsub("outputs/601/","",vcffile)) +
+  theme(plot.title = element_text(hjust=0.5))
+ggsave(paste0(vcffile,".pdf"))
+
+return(df)
+}
+
+```
+
+
+```{r}
+df<-makepc("outputs/601/NC_061063.1.vcf", samples$DI)
+```
+```{r}
+df$Individual<-samples$`Sample name`
+
+ggplot(df) +
+  geom_point(aes(x=Axis1, y=Axis2, color=Type)) +
+  xlab(paste("PC1", " ", round((100*var[1]),2), "%", sep = "")) +
+  ylab(paste("PC2", " ", round((100*var[2]),2), "%", sep = "")) +
+  geom_text_repel(aes(x=Axis1, y=Axis2, label=Individual), size=1, max.overlaps = Inf) +
+  theme_bw() +
+  ggtitle("NC_061063.1.vcf") +
+  theme(plot.title = element_text(hjust=0.5))
+
+ggsave("outputs/601/NC_061063.1.vcf-plot-withinds.pdf")
+
+```
+
+```{r, eval=FALSE}
+ddf<-lapply(vcfs, makepc, samples$DI)
+```
+
+I'm having this disturbing idea these aren't all what we think they are.
+
+`(base) maccamp@farm:~/dsm-omics/outputs/601/markers$ blastn -query ~/dsm-genotyping/outputs/200/seqs.fasta -evalue .001 -db ~/genomes/GCF021917145.1/GCF_021917145.1_fHypTra1_genomic.fna -outfmt 6  > blast.out`
+
+(base) maccamp@farm:~/dsm-omics/outputs/601/markers$ grep WKS blast.out 
+WKS_01	NC_061062.1	94.310	703	30	2	1	696	6044534	6043835	0.0	1068
+WKS_02	NC_061069.1	94.751	381	16	1	1	381	3412174	3412550	3.32e-167	590
+WKS_03	NC_061070.1	96.358	604	22	0	1	604	14582368	14582971	0.0	994
+WKS_04	NC_061066.1	96.438	758	25	2	1	756	8427685	8426928	0.0	1249
+WKS_05	NC_061060.1	92.000	325	4	3	1	303	7163931	7164255	3.64e-121	436
+WKS_06	NC_061082.1	91.257	366	11	3	301	645	2113706	2114071	1.31e-133	479
+WKS_06	NC_061082.1	96.341	246	9	0	1	246	2113437	2113682	2.26e-111	405
+WKS_07	NC_061067.1	92.487	386	22	2	53	437	728701	729080	8.45e-154	545
+
+```{r}
+blast<-read_tsv("outputs/601/blast.out", col_names = c("query", "target", "%id", "alignment-length", "diffs", "gaps", "query-start",
+                                                      "query-end", "target-start", "target-end", "e-value", "bitscore"))
+blast
+```
+
+>WKS_01 R001177 AA GG AA
+TCTGCAGGGCCTGGGACTGCAGGCTGCTCCCCTCAGTATGGTCCTGGAGGATTCTGACCACCATGGGACAAGACGGAATACAATTTATCATCCACCTATCCACCCTCCCTCCATCCATCCCATTCACTCAGACAC[A/G]TACCTG
+
+>WKS_02 R002608 TT CC TT
+GATGGAACTCTGGGTGGTTGGTGCGTTGGCGGAACCTCAGGAAGAGGACGACCGATATGATGGCGGTGGTCACTATGAAGATTGAAACCAGCCCAGCAAGCAGAGGGTCCAGAGGAGAGCTTGGGTGATGTGA[T/C]AGTTTGGC
+
+>WKS_03 R006717 TT GG TT
+CCCAGGCATCCCCGGGAGGAGAATATGAGCTGGGCTACAGCCAGGACCTTCTCCCTCAGTGGTGGATCAGAGCATGGATGCGTCTTGCGGTAGATCGCCAGGGCTCTGCTACGCACATGCTGCATCC[T/G]TGCTTCTGGCACCA
+
+>WKS_04 R009220 TT AA TT
+CAGCCAGATGGGCCAGGCAGCTGTCTGGCAGCTCCTTGATCCAGTTCTCCTCCAGGTGGAGGGACTGCAGCTGAGGCATCAGCCCCAGCTGGACGTCCCCCACGGACGACAGGTTGTTTTGGGACAAGTCGATCTC[T/A]GTGAC
+
+>WKS_05 R010828 AA GG AA
+CCAGCCTGGCTTCCCTGAGCCCTGCGTCTGCCTGGGCGTACTCCTCCACCCCCAGCTTCTTGTAGGCCACGCACAGGGTCCTGTAGCCCTCCTGAGAGCACACACACACACACACACCCCGACATAAGAC[A/G]ACAATAGGATT
+
+>WKS_06 R020283 GG AA GG
+CCGCCTGCTTGCTCTCCGCCTCGTACGGCACGATCTTGGCCATGAACAGGTTCCCTGTGGCGTTCTCACGGCACTCCCGGATCACGCCAAACCGCCCCCTGTGAGGAGAAGCACATGAAA[G/A]ACTTGCTGCTGTTACAGCATC
+
+>WKS_07 R020770 AA TT AA
+TCAGATCAAGGGCAAGGTTAGCTCTGCTATGGCACACATGCCCATCTACCGATCAGATCAAGGGAAAGGTTAGCTCTGCTATGGCACACATGCCCATCCAACCATCCAATCTACATATCAAACAGACA[A/T]TCAGAACAGAGGG
+
+
+(base) Macs-MacBook-Pro-2:601 mac$ tabix filtered-renamed.vcf.gz NC_061062.1:6043835-6044534
+NC_061062.1	6043852	NC_061062.1_6043852	G	A	.	.	.	GT	0/0	0/0	0/0	0/0	0/1	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/1	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/1	0/1	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/1	0/0	./.	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/1	0/1	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/1	0/0	0/0	0/0	0/1	0/1	0/0	./.	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/1	0/1	0/0	0/0	0/0	0/0
+NC_061062.1	6044094	NC_061062.1_6044094	A	C	.	.	.	GT	0/0	./.	0/0	0/0	0/0	0/0	0/0	0/0	0/1	0/0	0/1	0/0	./.	0/0	0/1	0/0	0/0	0/1	0/0	0/1	0/0	0/0	0/1	0/0	0/0	0/1	0/1	0/0	0/0	0/0	0/0	0/0	0/1	0/0	0/0	0/1	./.	0/0	0/1	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	./.	0/1	0/0	0/0	./.	0/0	0/0	0/0	0/0	0/0	0/1	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	./.	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0
+(base) Macs-MacBook-Pro-2:601 mac$ tabix filtered-renamed.vcf.gz NC_061069.1:3412174-3412550
+NC_061069.1	3412334	NC_061069.1_3412334	G	T	.	.	.	GT	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/1	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/1	0/0	0/0	0/0	0/0	0/0	0/0	0/1	0/0	0/1	0/1	0/0	0/1	0/0	0/0	0/0	0/1	0/0	0/0	./.	0/1	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/1	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/0	0/1	0/0	0/0	0/0	0/1	0/0

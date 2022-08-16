@@ -1,0 +1,72 @@
+---
+title: "900-Initial-Work"
+author: "Mac Campbell"
+date: "8/11/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+```
+
+```{r}
+library(tidyverse)
+```
+
+Goal: To summarize my efforts to date with the Delta Smelt genomics data set
+
+### 1 Sequence Data
+
+Meta and converage     
+
+```{r, echo=FALSE}
+meta<-read_csv("meta/meta-excl-epi-ncbi.csv")
+summary<-meta %>% group_by(CrossType, `library number`) %>% summarize(Count=n())
+summary
+```
+
+Coverage     
+```{r, echo=FALSE}
+ggplot(meta) +
+  geom_histogram(aes(Coverage, fill=`library number`)) +
+  theme_bw() +
+  theme(panel.grid=element_blank()) +
+  ylab("Count") +
+  theme(axis.title = element_text(face="bold")) +
+  scale_y_continuous(breaks=c(0,5,10,15,20,25)) +
+  ggtitle("Histogram of Coverage") +
+  theme(plot.title = element_text(hjust=0.5))
+```
+
+```{r, echo=FALSE}
+meta %>% group_by(`library number`) %>%
+  summarize(AvgCoverage=mean(Coverage))
+```
+
+Created a test dataset by keeping fish with coverage +- 1 sd of mean (test96), but ended up with 91 samples, dropping 5 due to kinship (>0.625).    
+
+```{r}
+kept96<-read_tsv("meta/kept96.tsv")
+kept96 %>% group_by(CrossType, `library number`) %>% summarize(Count=n())
+```
+
+```{r, echo=FALSE}
+ggplot(kept96) +
+  geom_histogram(aes(Coverage, fill=`library number`)) +
+  theme_bw() +
+  theme(panel.grid=element_blank()) +
+  ylab("Count") +
+  theme(axis.title = element_text(face="bold")) +
+  scale_y_continuous(breaks=c(0,5,10,15,20,25)) +
+  ggtitle("Histogram of Coverage") +
+  theme(plot.title = element_text(hjust=0.5))
+```
+
+
+PCA of genotype calls:
+
+963923 sites after filtering (see 702, keeping biallelic sites, minMaf 0.05, etc.)
+
+```{sh, eval=FALSE}
+bcftools +prune -l 0.6 -w 10000 outputs/702/filtered-renamed.vcf -Ov -o outputs/900/plink-pruned.vcf
+```

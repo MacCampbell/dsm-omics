@@ -408,7 +408,11 @@ eig <- eigen(cov, symm = TRUE)
 var<-eig$values/sum(eig$values)
 cumvar<-cumsum(eig$values)/sum(eig$values)
 
+var
+cumvar
+```
 
+```{r}
 ggplot(pp_meta2) +
   geom_point(aes(x=val_x, y=val_y, shape=`library number`, color=DI)) +
   coord_fixed() +

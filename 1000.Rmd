@@ -1,0 +1,95 @@
+---
+title: '1000'
+author: "Mac Campbell"
+date: "8/16/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+```
+
+```{r}
+library(tidyverse)
+```
+
+
+__1__ Identify samples to retain
+__2__ Redo analyses
+        _a_ GWAS with covariance? Doing chrom by chrom, should use new cov matrices each time!!!
+        _b_ local PCA within HDI and within LDI?
+        _c_ Fst?
+        _d_
+        
+
+## 1.Samples to retain
+
+We should identify individuals with sufficient coverage, exclude samples with excessive coverage, downsample some if needed.   
+
+eta and converage     
+
+```{r, echo=FALSE}
+meta<-read_csv("meta/meta-excl-epi-ncbi.csv")
+summary<-meta %>% group_by(CrossType, `library number`) %>% summarize(Count=n())
+summary
+```
+
+Coverage     
+```{r, echo=FALSE}
+ggplot(meta) +
+  geom_histogram(aes(Coverage, fill=`library number`)) +
+  theme_bw() +
+  theme(panel.grid=element_blank()) +
+  ylab("Count") +
+  theme(axis.title = element_text(face="bold")) +
+  scale_y_continuous(breaks=c(0,5,10,15,20,25)) +
+  ggtitle("Histogram of Coverage") +
+  theme(plot.title = element_text(hjust=0.5))
+```
+
+```{r, echo=FALSE}
+meta %>% group_by(`library number`) %>%
+  summarize(AvgCoverage=mean(Coverage))
+```
+
+Created a test dataset by keeping fish with coverage +- 1 sd of mean (test96), but ended up with 91 samples, dropping 5 due to kinship (>0.625).    
+
+```{r}
+kept96<-read_tsv("meta/kept96.tsv")
+kept96 %>% group_by(CrossType, `library number`) %>% summarize(Count=n())
+```
+
+```{r, echo=FALSE}
+ggplot(kept96) +
+  geom_histogram(aes(Coverage, fill=`library number`)) +
+  theme_bw() +
+  theme(panel.grid=element_blank()) +
+  ylab("Count") +
+  theme(axis.title = element_text(face="bold")) +
+  scale_y_continuous(breaks=c(0,5,10,15,20,25)) +
+  ggtitle("Histogram of Coverage") +
+  theme(plot.title = element_text(hjust=0.5))
+```
+
+So, is this a justifiable approach? Sure!!!
+
+## 2. Analyses
+Gwas with COV
+
+bash $HOME/dsm-omics/703.2-doAsso2-withCov.sh $HOME/dsm-omics/bamlists/test91.bamlist  $HOME/dsm-omics/meta/1mbseqs.txt  $HOME/dsm-omics/meta/test91.pheno $HOME/dsm-omics/meta/test91-pcs.tsv
+
+We should actually supply a separate COV matrix to each analysis. 
+
+Generating, can use test91.bamlist and outputs/1000/
+
+```{sh, eval=FALSE}
+#Generate beagles
+bash $HOME/dsm-omics/203-parallelize-pca.sh $HOME/dsm-omics/bamlists/test91.bamlist $HOME/dsm-omics/meta/1mbseqs.txt
+
+#Generate covs
+cat $HOME/dsm-omics/meta/1mbseqs.txt | while read line; do python $HOME/pcangsd/pcangsd.py; \
+  -beagle $line-pca.beagle.gz -o $line -threads 10 > $line.stdout 2> $line.stderr;
+
+#Conduct chrom by chrom gwas, like 703.2
+```
+srun -p bigmemm --mem=32G -t 03:00:00 python $HOME/pcangsd/pcangsd.py -beagle outputs/203/chroms.beagle.gz -relate outputs/203/test125.kinship.kinship.npy -o outputs/203/test125-kinremoved -threads 10 > outputs/203/pca-kin.stdout 2> outputs/203/pca-kin.stderr &

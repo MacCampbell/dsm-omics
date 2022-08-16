@@ -103,4 +103,28 @@ Looking at
 3 NC_061065.1 13099447    
 4 NC_061065.1 13101117   
 
+### Sliding windows
+
+```{r}
+files<-list.files(path="outputs/701", pattern="*50k-10k", full.names=TRUE)
+list<-lapply(files, read_tsv, col_names=TRUE)
+wins<-bind_rows(list)
+```
+```{r}
+wins<-wins %>% separate(Nsites, sep="\t", into=c("NSites","Fst"))
+wins$Fst<-as.numeric(wins$Fst)
+```
+
+```{r}
+#sub<-wins %>% filter(chr %in% c("NC_061060.1","NC_061061.1","NC_061076.1","NC_061077.1","NC_061068.1"))
+```
+
+```{r}
+ggplot(wins) +
+  geom_point(aes(x=midPos, y=Fst)) +
+  facet_wrap(.~chr, scales="free_x") +
+  theme_bw() +
+  theme(panel.grid = element_blank())
+ggsave("outputs/701/fst-wins.pdf", width=12, height = 12)
+```
 
