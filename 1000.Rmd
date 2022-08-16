@@ -86,10 +86,13 @@ Generating, can use test91.bamlist and outputs/1000/
 #Generate beagles
 bash $HOME/dsm-omics/203-parallelize-pca.sh $HOME/dsm-omics/bamlists/test91.bamlist $HOME/dsm-omics/meta/1mbseqs.txt
 
-#Generate covs
-cat $HOME/dsm-omics/meta/1mbseqs.txt | while read line; do python $HOME/pcangsd/pcangsd.py; \
-  -beagle $line-pca.beagle.gz -o $line -threads 10 > $line.stdout 2> $line.stderr; done;
+#Generate cov matrix
+cat $HOME/dsm-omics/meta/1mbseqs.txt | while read line; do python $HOME/pcangsd/pcangsd.py -beagle $line-pca.beagle.gz -o $line -threads 10 > $line.stdout 2> $line.stderr; done;
 
+#Make PCs
 #Conduct chrom by chrom gwas, like 703.2
 ```
-srun -p bigmemm --mem=32G -t 03:00:00 python $HOME/pcangsd/pcangsd.py -beagle outputs/203/chroms.beagle.gz -relate outputs/203/test125.kinship.kinship.npy -o outputs/203/test125-kinremoved -threads 10 > outputs/203/pca-kin.stdout 2> outputs/203/pca-kin.stderr &
+
+
+Initially trying with NC_061085.1    
+`(base) maccamp@farm:~/dsm-omics/outputs/1000$ bash ../../1000.1-doAsso2-withCov-perChrom.sh $HOME/dsm-omics/bamlists/test91.bamlist test.chrom $HOME/dsm-omics/meta/test91.pheno `
