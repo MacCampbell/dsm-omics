@@ -16,7 +16,7 @@ library(tidyverse)
 
 __1__ Identify samples to retain
 __2__ Redo analyses
-        _a_ GWAS with covariance? Doing chrom by chrom, should use new cov matrices each time!!!
+        _a_ GWAS with covariance? Doing chrom by chrom, should use new cov matrices each time? https://github.com/ANGSD/angsd/issues/149    
         _b_ local PCA within HDI and within LDI?
         _c_ Fst?
         _d_
@@ -89,10 +89,15 @@ bash $HOME/dsm-omics/203-parallelize-pca.sh $HOME/dsm-omics/bamlists/test91.baml
 #Generate cov matrix
 cat $HOME/dsm-omics/meta/1mbseqs.txt | while read line; do python $HOME/pcangsd/pcangsd.py -beagle $line-pca.beagle.gz -o $line -threads 10 > $line.stdout 2> $line.stderr; done;
 
-#Make PCs
-#Conduct chrom by chrom gwas, like 703.2
+#Make PCs, see 1000.1-makePCs.R
+
+#Conduct chrom by chrom gwas, like 703.2, see 1000.1-doAsso2-withCov-perChr.sh. This is using the first three PCs as covariates
 ```
+
 
 
 Initially trying with NC_061085.1    
 `(base) maccamp@farm:~/dsm-omics/outputs/1000$ bash ../../1000.1-doAsso2-withCov-perChrom.sh $HOME/dsm-omics/bamlists/test91.bamlist test.chrom $HOME/dsm-omics/meta/test91.pheno `
+
+The test is unreliable. You should increase -minHigh . The default is 10, checking outfile. 
+NC_061085.1	1663267	C	T	0.071369	91	823.545997	79/11/1

@@ -13,14 +13,14 @@ list=$2
 phenos=$3
 
 
-#Setting minInd to 1/2 of inds
+#Setting minInd to 75% of inds
 lines=$(wc -l < "$bamlist")
-thresh=$((lines/2))
+thresh=$((lines*.75))
 
 while read chrom; do
   echo "#!/bin/bash -l
   $HOME/angsd/angsd -doAsso 2 -doPost 1 -yBin $phenos -cov $chrom.covariates -GL 1 -nThreads 12 -minInd $thresh  \
-   -minMapQ 20 -minQ 20 -minMaf 0.05 \
+   -minMapQ 20 -minQ 20 -minMaf 0.05   -minHigh 20 \
   -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 -r $chrom -out $chrom-asso \
   -bam $bamlist  > $chrom-asso.out 2> $chrom-asso.err " > $chrom-asso.sh
   
