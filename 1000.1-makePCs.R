@@ -10,7 +10,7 @@ library(tidyverse)
 
 # 1. Read in file of chroms
 
-files<-read_tsv("$HOME/dsm-omics/meta/1mbseqs.txt", col_names=c("Chrom"))
+files<-read_tsv("$HOME/dsm-omics/meta/test-chrom.txt", col_names=c("Chrom"))
   
 # 2. look for output in dir (1000)
 
