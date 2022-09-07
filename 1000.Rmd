@@ -89,10 +89,13 @@ bash $HOME/dsm-omics/203-parallelize-pca.sh $HOME/dsm-omics/bamlists/test91.baml
 #Generate cov matrix
 cat $HOME/dsm-omics/meta/1mbseqs.txt | while read line; do python $HOME/pcangsd/pcangsd.py -beagle $line-pca.beagle.gz -o $line -threads 10 > $line.stdout 2> $line.stderr; done;
 
-#Make PCs, see 1000.1-makePCs.R
+#Make PCs, see 1000.1-makePCs.R 
+#Execute in ~/dsm-omics/
 Rscript 1000.1-makePCs.R
 
 #Conduct chrom by chrom gwas, like 703.2, see 1000.1-doAsso2-withCov-perChr.sh. This is using the first three PCs as covariates
+#Execute in ~/dsm-omics/outputs/1000/
+
 ```
 
 
