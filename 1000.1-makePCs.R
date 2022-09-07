@@ -16,11 +16,11 @@ files<-read_tsv("$HOME/dsm-omics/meta/test-chrom.txt", col_names=c("Chrom"))
 
 # 3. Generate covariates
 covariates<-function(file) {
-  chrom<-gsub(".cov","",file)
-  cov <- as.matrix(read.table(paste0("outputs/1000",file,".cov")))
+  #chrom<-gsub(".cov","",file)
+  cov <- as.matrix(read.table(paste0("outputs/1000/",file,".cov")))
   e<-eigen(cov)
   
-  write.table(e$vectors[,1:3],file=paste0("outputs/1000",chrom,".covariates"),row=F,qu=F,col=F)
+  write.table(e$vectors[,1:3],file=paste0("outputs/1000.",file,".covariates"),row=F,qu=F,col=F)
   
 }
 
