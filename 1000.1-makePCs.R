@@ -6,11 +6,10 @@
 
 #Need to generalize.
 #/home/maccamp/miniconda2/bin/Rscript on FARM
-library(tidyverse)
 
 # 1. Read in file of chroms
 
-files<-read_tsv("$HOME/dsm-omics/meta/test-chrom.txt", col_names=c("Chrom"))
+files<-read.table("meta/1mbseqs.txt", col.names = c("Chrom"), sep="\t")
   
 # 2. look for output in dir (1000)
 
@@ -20,11 +19,11 @@ covariates<-function(file) {
   cov <- as.matrix(read.table(paste0("outputs/1000/",file,".cov")))
   e<-eigen(cov)
   
-  write.table(e$vectors[,1:3],file=paste0("outputs/1000.",file,".covariates"),row=F,qu=F,col=F)
+  write.table(e$vectors[,1:3],file=paste0("outputs/1000/",file,".covariates"),row=F,qu=F,col=F)
   
 }
 
-lapply(files, covariates)
+lapply(files$Chrom, covariates)
 
 
 
