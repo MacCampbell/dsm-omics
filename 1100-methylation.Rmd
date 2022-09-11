@@ -1,0 +1,21 @@
+---
+title: "1100-methylation"
+author: "Mac Campbell"
+date: "9/11/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+## Using existing tools from Davis
+https://ucdavis-bioinformatics-training.github.io/2020-Epigenetics_Workshop/WGBS/WGBS
+
+First off creating a directory structure to mimic theirs. `/home/maccamp/Methylation`
+with subdir '00-RawData`
+
+We have two lanes of the same samples that neeed to be merged. Using something like 'PL1A01' /group/millermrgrp4/maccamp/smelt-bis/ group/millermrgrp4/maccamp/smelt-bis-2.    
+
+`cat methyl-list.txt | while read line; do echo "gunzip -c /group/millermrgrp4/maccamp/smelt-bis/$line*.gz > /home/maccamp/Methylation/00-RawData/$line.fastq" >> methyl-commands-$line.sh; echo "gunzip -c /group/millermrgrp4/maccamp/smelt-bis-2/$line*.gz >> $line.fastq" >> methyl-commands-$line.sh; echo "gzip $line.fastq" >> methyl-commands-$line.sh;  done;`
+
