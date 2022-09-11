@@ -17,5 +17,14 @@ with subdir '00-RawData`
 
 We have two lanes of the same samples that neeed to be merged. Using something like 'PL1A01' /group/millermrgrp4/maccamp/smelt-bis/ group/millermrgrp4/maccamp/smelt-bis-2.    
 
+In methyl-commands 
+
 `cat methyl-list.txt | while read line; do echo "gunzip -c /group/millermrgrp4/maccamp/smelt-bis/$line*.gz > /home/maccamp/Methylation/00-RawData/$line.fastq" >> methyl-commands-$line.sh; echo "gunzip -c /group/millermrgrp4/maccamp/smelt-bis-2/$line*.gz >> $line.fastq" >> methyl-commands-$line.sh; echo "gzip $line.fastq" >> methyl-commands-$line.sh;  done;`
+       
+       
+` ls | grep sh > parallel-commands`    
+
+
+Trying one, that is `(base) maccamp@farm:~/Methylation/00-RawData$ bash ~/dsm-omics/methyl-commands/methyl-commands-PL2H04.sh `
+
 
