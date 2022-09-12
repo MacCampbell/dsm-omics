@@ -34,4 +34,6 @@ Batching:
 
 ## Reference
 Using GCF_021917145.1_fHypTra1_genomic.fna
+Also setting up chrom01 samtools faidx GCF_021917145.1_fHypTra1_genomic.fna NC_061060.1  >NC_061060.1.fna
+
 
