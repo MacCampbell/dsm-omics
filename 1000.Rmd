@@ -106,3 +106,5 @@ Initially trying with NC_061085.1
 
 The test is unreliable. You should increase -minHigh . The default is 10, checking outfile. 
 NC_061085.1	1663267	C	T	0.071369	91	823.545997	79/11/1
+I doubled it to    -minHigh 20     
+

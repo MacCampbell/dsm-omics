@@ -4,7 +4,7 @@
 # Feeding a list of chroms meta/test.chroms
 # This will look for a covariance matrix named $chrom.cov based on the read in .chroms file.
 
-# bash $HOME/dsm-omics/1000.1-doAsso2-withCov-perChr.sh $HOME/dsm-omics/bamlists/test91.bamlist  $HOME/dsm-omics/meta/1mbseqs.txt $HOME/dsm-omics/meta/test91.pheno 
+# bash $HOME/dsm-omics/1000.1-doAsso2-withCov-perChrom.sh $HOME/dsm-omics/bamlists/test91.bamlist  $HOME/dsm-omics/meta/1mbseqs.txt $HOME/dsm-omics/meta/test91.pheno 
 
 
 
