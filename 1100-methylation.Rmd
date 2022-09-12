@@ -19,8 +19,9 @@ We have two lanes of the same samples that neeed to be merged. Using something l
 
 In methyl-commands creating fastqs, not gzipping
 
-`cat ../meta/methyl-list.txt | while read line; do echo "gunzip -c /group/millermrgrp4/maccamp/smelt-bis/$line*.gz > /home/maccamp/Methylation/00-RawData/$line.fastq" > methyl-commands-$line.sh; echo "gunzip -c /group/millermrgrp4/maccamp/smelt-bis-2/$line*.gz >> /home/maccamp/Methylation/00-RawData/$line.fastq" >> methyl-commands-$line.sh;  done;`
-       
+```{sh, eval=FALSE}
+cat ../meta/methyl-list.txt | while read line; do echo "gunzip -c /group/millermrgrp4/maccamp/smelt-bis/$line*.R1_001.fastq.gz > /home/maccamp/Methylation/00-RawData/$line-1.fastq" > methyl-commands-$line.sh; echo "gunzip -c /group/millermrgrp4/maccamp/smelt-bis-2/$line*.R1_001.fastq.gz >> /home/maccamp/Methylation/00-RawData/$line-1.fastq" >> methyl-commands-$line.sh; echo "gunzip -c /group/millermrgrp4/maccamp/smelt-bis/$line*.R2_001.fastq.gz > /home/maccamp/Methylation/00-RawData/$line-2.fastq" >> methyl-commands-$line.sh; echo "gunzip -c /group/millermrgrp4/maccamp/smelt-bis-2/$line*.R2_001.fastq.gz >> /home/maccamp/Methylation/00-RawData/$line-2.fastq" >> methyl-commands-$line.sh; done;
+```       
        
 ` ls | grep sh | while read line; do echo "bash ./$line" >> parallel-commands; done;`    
 
