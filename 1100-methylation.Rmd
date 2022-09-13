@@ -34,10 +34,49 @@ Batching:
 
 ## Reference
 Using GCF_021917145.1_fHypTra1_genomic.fna
-Also setting up chrom01 samtools faidx GCF_021917145.1_fHypTra1_genomic.fna NC_061060.1  >NC_061060.1.fna
 `(base) maccamp@farm:~/Methylation/scripts$ sbatch -J bismark-mac bismark_pre.slurm `
 
 ## Samples
 Using meta/methyl-list.txt as allsamples.txt    
+
+These were not sequenced twice:
+(base) maccamp@farm:~/dsm-omics/methyl-commands$ cat std.err | cut -f 2 -d ":" | perl -pe 's/\/.*\///g' | perl -pe 's/\*.+$//g' | sort | uniq
+     
+     
+Those samples copied over just fine though.     
+
+## QC 
+Initially running with 6 samples (have 133)
+
+Running fastqc_pre.slurm
+
+`(base) maccamp@farm:~/Methylation/scripts$ sbatch -J fastqc.$USER --array=1-6 fastqc_pre.slurm `
+`(base) maccamp@farm:~/Methylation/scripts$ sbatch -p high -J mqc.${USER} multiqc_pre.slurm`
+data looks good.     
+Trimming      
+`sbatch -p high -J tg.${USER} --array=1-6 trimgalore.slurm`     
+
+Checking output post trimming.
+
+
+jobid=$(sbatch -p high -J fqcp.${USER} --array=1-6 fastqc_post.slurm |cut -d' ' -f4 - )
+sbatch -J mqcp.${USER} --dependency=afterok:${jobid} multiqc_post.slurm
+
+## Alignment
+sbatch -p high -J bm1.${USER} --array=1-6 bismark_part1.slurm # running
+
+Examine metrics:      
+ls $HOME/Methylation/03-Bismark/*_PE_report.txt > input2.fofn
+ls $HOME/Methylation/03-Bismark/*.deduplication_report.txt >> input2.fofn
+ls $HOME/Methylation/04-Methylation/*.M-bias.txt >> input2.fofn
+ls $HOME/Methylation/04-Methylation/*_splitting_report.txt >> input2.fofn
+sbatch -J mqb.${USER} multiqc_bismark.slurm
+
+
+# DMRichR
+
+https://www.benlaufer.com/DMRichR/articles/DMRichR.html#dmr-approach-and-interpretation
+
+use the coverage2cytosine module in Bismark to generate the cytosine reports.     
 
 

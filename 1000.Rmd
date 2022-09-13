@@ -97,6 +97,9 @@ Rscript 1000.1-makePCs.R
 #Conduct chrom by chrom gwas, like 703.2, see 1000.1-doAsso2-withCov-perChr.sh. This is using the first three PCs as covariates
 #Execute in ~/dsm-omics/outputs/1000/
 
+bash $HOME/dsm-omics/1000.1-doAsso2-withCov-perChrom.sh $HOME/dsm-omics/bamlists/test91.bamlist  $HOME/dsm-omics/meta/1mbseqs.txt $HOME/dsm-omics/meta/test91.pheno 
+
+
 ```
 
 
@@ -108,3 +111,24 @@ The test is unreliable. You should increase -minHigh . The default is 10, checki
 NC_061085.1	1663267	C	T	0.071369	91	823.545997	79/11/1
 I doubled it to    -minHigh 20     
 
+```{r}
+files = list.files(path="outputs/1000/", pattern="*.lrt0.gz", full.names = TRUE)
+list = lapply(files, read_tsv)
+data<-bind_rows(list)
+```
+```{r}
+df <- data %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
+  filter(log10p>=0 & log10p != "Inf") %>%
+  mutate(p = dchisq(LRT, df=1)) %>%
+  mutate(bonfer = p.adjust(p, method = "bonferroni")) %>% 
+  mutate(BHfdr = p.adjust(p, method = "BH")) %>%
+  group_by(Chromosome) %>%
+  mutate(adjpchrom = p.adjust(p, method = "bonferroni")) %>%
+  mutate(BHfdrchrom = p.adjust(p, method = "BH"))
+
+df %>% arrange(-LRT) %>% head(n=20)
+```
+
+```{r}
+df %>% filter(log10p>20)
+```
