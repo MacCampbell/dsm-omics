@@ -13,9 +13,9 @@ list=$2
 phenos=$3
 
 
-#Setting minInd to 75% of inds
+#Setting minInd to 50% of inds
 lines=$(wc -l < "$bamlist")
-thresh=$((lines*.75))
+thresh=$((lines*.5))
 
 while read chrom; do
   echo "#!/bin/bash -l
