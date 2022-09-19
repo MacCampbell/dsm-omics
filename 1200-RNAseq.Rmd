@@ -1,0 +1,142 @@
+---
+title: "1200-RNAseq"
+author: "Mac Campbell"
+date: "9/19/2022"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning=FALSE)
+```
+
+## RNA seq
+
+Method? Machine?  Tagseq?
+
+Looks to be single end data (expected)     
+`ls ../00-RawData/ | perl -pe 's/.fastq.gz//g' > all-samples.txt`     
+
+Existing workflows?     
+https://github.com/z0on/tag-based_RNAseq
+https://github.com/ben-laufer/Tag-seq/blob/master/tag-seq.sh    
+
+__0__ Building STAR indices
+
+
+__1__ Basic assessment
+
+Calling like this:     
+
+```{sh eval=FALSE}
+sbatch -p med -J fastqc.$USER --array=1-12 01-fastq.slurm; #running
+```
+
+
+__2__ Trimming
+
+We need to accomodate for quite a bit. trimmomatic or bbmap/bbduk.sh are appropriate. Requires some references for trimming such as Illumina RNA seq adapters, etc.    module avail indicates we have bbmap/38-72                  
+
+Examining data for adapter signatures.    
+>TruSeq Universal Adapter						
+AATGATACGGCGACCACCGAGATCTACACTCTTTCCCTACACGACGCTCTTCCGATCT
+>TruSeq Adapter, Index 1							
+GATCGGAAGAGCACACGTCTGAACTCCAGTCACATCACGATCTCGTATGCCGTCTTCTGCTTG
+
+```{sh, eval=FALSE}
+gunzip -c AF104_UMI_S81_R1_001.fastq.gz | head -n 4000000 > temp.fastq
+#HITS
+#"GATCGGAAGAGCACACGTCTGAACTCCAGT", part of Truseq Adapter, index 1
+#"AGATCGGAAGAGCACACGTCTGAACTCCAGTCA" Truseq forward
+```
+
+Adding these to trim
+>TruSeq Universal Adapter						
+AATGATACGGCGACCACCGAGATCTACACTCTTTCCCTACACGACGCTCTTCCGATCT
+>TruSeq Adapter, Index 1							
+GATCGGAAGAGCACACGTCTGAACTCCAGTCACATCACGATCTCGTATGCCGTCTTCTGCTTG
+>TruSeq Adapter, Index 2							
+GATCGGAAGAGCACACGTCTGAACTCCAGTCACCGATGTATCTCGTATGCCGTCTTCTGCTTG
+>TruSeq Adapter, Index 3							
+GATCGGAAGAGCACACGTCTGAACTCCAGTCACTTAGGCATCTCGTATGCCGTCTTCTGCTTG
+>TruSeq Adapter, Index 4							
+GATCGGAAGAGCACACGTCTGAACTCCAGTCACTGACCAATCTCGTATGCCGTCTTCTGCTTG
+>TruSeq Adapter, Index 5							
+GATCGGAAGAGCACACGTCTGAACTCCAGTCACACAGTGATCTCGTATGCCGTCTTCTGCTTG
+>TruSeq Adapter, Index 6							
+GATCGGAAGAGCACACGTCTGAACTCCAGTCACGCCAATATCTCGTATGCCGTCTTCTGCTTG
+>TruSeq Adapter, Index 7							
+GATCGGAAGAGCACACGTCTGAACTCCAGTCACCAGATCATCTCGTATGCCGTCTTCTGCTTG
+>TruSeq Adapter, Index 8							
+GATCGGAAGAGCACACGTCTGAACTCCAGTCACACTTGAATCTCGTATGCCGTCTTCTGCTTG
+>TruSeq Adapter, Index 9							
+GATCGGAAGAGCACACGTCTGAACTCCAGTCACGATCAGATCTCGTATGCCGTCTTCTGCTTG
+>TruSeq Adapter, Index 10						
+GATCGGAAGAGCACACGTCTGAACTCCAGTCACTAGCTTATCTCGTATGCCGTCTTCTGCTTG
+>TruSeq Adapter, Index 11						
+GATCGGAAGAGCACACGTCTGAACTCCAGTCACGGCTACATCTCGTATGCCGTCTTCTGCTTG
+>TruSeq Adapter, Index 12						
+GATCGGAAGAGCACACGTCTGAACTCCAGTCACCTTGTAATCTCGTATGCCGTCTTCTGCTTG
+>Truseq forward read
+AGATCGGAAGAGCACACGTCTGAACTCCAGTCA
+>Truseq reverse read
+AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT
+
+Trimming script 02-bbduk.slurm is this:
+
+```{sh, eval=FALSE}
+#!/bin/bash
+#
+#SBATCH --time=4-00
+#SBATCH --mem=10G # Memory pool for all cores (see also --mem-per-cpu)
+#SBATCH --output=slurmout/fqc-%A-%a.out # File to which STDOUT will be written
+#SBATCH --error=slurmout/fqc-%A-%a.err # File to which STDERR will be written
+
+start=`date +%s`
+hostname
+
+aklog
+export baseP=/home/$USER/RNAseq/
+export seqP=${baseP}/00-RawData
+export outP=${baseP}/02-Trimmed
+export cwd=${baseP}/scripts
+export tmpP=$cwd/tmp
+
+
+if [ ! -d "${outP}" ]; then
+   mkdir ${outP}
+fi
+
+if [ ! -d "${tmpP}" ]; then
+   mkdir ${tmpP}
+fi
+
+
+module load bbmap/38-72   
+
+name=`head -n ${SLURM_ARRAY_TASK_ID} allsamples.txt | tail -1`
+
+
+call="bbduk.sh -t ${SLURM_NTASKS} \
+in=$seqP/${name}.fastq.gz \
+out=$outP/${name}.fastq.gz  \
+ref=adapters.fasta \
+literal=AAAAAAAAAAAAAAAAAA \
+k=13 \
+ktrim=r \
+useshortkmers=t \
+mink=5 \
+qtrim=r \
+trimq=10 \
+minlength=20 \
+stats=$outP/${name}-stats.txt"
+
+echo $call
+eval $call
+
+end=`date +%s`
+runtime=$((end - start ))
+echo $runtime
+```
+
+call:
+`sbatch -p med -J bbduk$USER --array=1-12 02-bbduk.slurm`   

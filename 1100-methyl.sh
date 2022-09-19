@@ -4,11 +4,11 @@
 ## Executing in (base) maccamp@farm:~/Methylation/scripts$ 
 
 ## QC
-sbatch -p bigmemm -J fastqc.$USER --array=1-133 fastqc_pre.slurm; #running
+sbatch -p med -J fastqc.$USER --array=1-133 fastqc_pre.slurm; # restarted 9/19
 sbatch -p high -J mqc.${USER} multiqc_pre.slurm;
-sbatch -p bigmemm -J tg.${USER} --array=1-133 trimgalore.slurm;
+sbatch -p med -J tg.${USER} --array=1-133 trimgalore.slurm; # started 9/19
 jobid=$(sbatch -p bigmemm -J fqcp.${USER} --array=1-133 fastqc_post.slurm |cut -d' ' -f4 - )
 sbatch -J mqcp.${USER} --dependency=afterok:${jobid} multiqc_post.slurm
 
 ## Align
-sbatch -p bigmem -J bm1.${USER} --array=1-133 bismark_part1.slurm
+sbatch -p med -J bm1.${USER} --array=1-133 bismark_part1.slurm
