@@ -63,7 +63,7 @@ jobid=$(sbatch -p high -J fqcp.${USER} --array=1-6 fastqc_post.slurm |cut -d' ' 
 sbatch -J mqcp.${USER} --dependency=afterok:${jobid} multiqc_post.slurm
 
 ## Alignment
-sbatch -p high -J bm1.${USER} --array=1-6 bismark_part1.slurm # running
+sbatch -p high -J bm1.${USER} --array=1-133 bismark_part1.slurm # running
 
 Examine metrics:      
 ls $HOME/Methylation/03-Bismark/*_PE_report.txt > input2.fofn
