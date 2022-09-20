@@ -37,7 +37,8 @@ __1__ Basic assessment
 Calling like this:     
 
 ```{sh eval=FALSE}
-sbatch -p med -J fastqc.$USER --array=1-12 01-fastqc.slurm; #running
+sbatch -p med -J fastqc.$USER --array=1-12 01-fastqc.slurm;
+sbatch -J mqcp.${USER} 01-pre-multiqc.slurm
 ```
 
 
@@ -245,7 +246,7 @@ fi
 #module load bio3
 module load multiqc/bio3    
 
-call="multiqc -o $outP/ -f $outP/*_fastqc.zip"
+call="multiqc -o $outP/ -f $seqP/*_fastqc.zip"
 echo $call
 eval $call
 
@@ -314,3 +315,5 @@ eval $call
 ```
 
 `sbatch -p med -J star-$USER --array=1-12 04-star-align.slurm `
+
+Don't forget to index bams!!    
