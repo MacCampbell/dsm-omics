@@ -9,6 +9,10 @@ output: html_document
 knitr::opts_chunk$set(echo = FALSE, message = FALSE, warning=FALSE)
 ```
 
+```{r}
+library(tidyverse)
+```
+
 ## RNA seq
 
 Method? Machine?  Tagseq?
@@ -317,3 +321,46 @@ eval $call
 `sbatch -p med -J star-$USER --array=1-12 04-star-align.slurm `
 
 Don't forget to index bams!!    
+`(base) maccamp@farm:~/RNAseq/04-Align$ for f in *.bam; do echo $f; samtools index $f; done;`
+
+
+## DESeq2      
+
+What were our samples again?     
+Sample Well RIN      
+29	E04	4.99   
+106	B02	4.93   
+91	C12	4.92   
+49	A07	4.89   
+36	D05	4.77   
+27	C04	4.75   
+104	H01	4.75   
+51	C07	4.74   
+94	F12	4.68    
+108	D02	4.66    
+39	G05	4.64    
+26	B04	4.62    
+    
+```{r}
+rin <-read_csv("meta/Sorted-RIN.csv")
+meta<-read_csv("meta/dsm-rna-meta.csv")  %>% mutate(Sample=paste0("AF",`sonication number`)) %>% relocate(Sample)
+```
+
+
+```{r}
+keepers <- filter(rin, rin$`Sample Name` %in% tops$`Sample Name`)
+keepers<-keepers %>% mutate(Sample=paste0("AF", `Sample Name`)) %>% relocate(Sample)
+keepers<-keepers %>% left_join(meta)
+keepers$Category<-gsub("_\\w_","",keepers$`hdi category`)
+keepers %>% arrange(Category) %>% select (Sample, Category)
+```
+
+Analyzing with DESeq2       
+We need to have our counts matrix and col     
+Count matrix unstranded?     
+
+Want something like
+`gene_id\thdi1\thdi2\tldi1\tldi2\n`
+```{sh, eval=false}
+
+```
