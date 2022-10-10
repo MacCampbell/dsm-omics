@@ -96,6 +96,8 @@ AGATCGGAAGAGCACACGTCTGAACTCCAGTCA
 AGATCGGAAGAGCGTCGTGTAGGGAAAGAGTGT
 
 Trimming script 02-bbduk.slurm is this:
+It has a poly-A workaround   https://www.biostars.org/p/236515/   
+First 12bp also biased, but using STAR.     
 
 ```{sh, eval=FALSE}
 #!/bin/bash
@@ -348,19 +350,254 @@ meta<-read_csv("meta/dsm-rna-meta.csv")  %>% mutate(Sample=paste0("AF",`sonicati
 
 
 ```{r}
+tops<-rin %>% head(n=12)
 keepers <- filter(rin, rin$`Sample Name` %in% tops$`Sample Name`)
 keepers<-keepers %>% mutate(Sample=paste0("AF", `Sample Name`)) %>% relocate(Sample)
 keepers<-keepers %>% left_join(meta)
 keepers$Category<-gsub("_\\w_","",keepers$`hdi category`)
-keepers %>% arrange(Category) %>% select (Sample, Category)
+keepers %>% arrange(Category) %>% select(Sample, Category)
 ```
 
 Analyzing with DESeq2       
-We need to have our counts matrix and col     
+We need to have our counts matrix and col be in the same order     
 Count matrix unstranded?     
 
 Want something like
 `gene_id\thdi1\thdi2\tldi1\tldi2\n`
-```{sh, eval=false}
+```{sh, eval=FALSE}
+for f in *.tab; do echo $f | perl -pe 's/_.*out.tab//g'; done;
+```
+AF104
+AF106
+AF108
+AF26
+AF27
+AF29
+AF36
+AF39
+AF49
+AF51
+AF91
+AF94
 
+Creating a function to do what I want.    
+
+```{r}
+dat<-read_tsv("outputs/1200/AF104_UMI_S81_R1_001-ReadsPerGene.out.tab", col_names = c("gene_id","Unstranded", "First Read","Second Read"))
+dat
+#TagSeq is strand specific, so `First Read` is what we want
+```
+
+
+```{r}
+dat[startsWith(dat$gene_id, "N_"),]
+```
+
+```{r}
+dat2<-dat[!startsWith(dat$gene_id, "N_"),]
+dat2 %>% select(gene_id, `First Read`) %>% rename(AF104=`First Read`)
+```
+
+Now, do it 12 times real fast.     
+
+```{r}
+files<-list.files(path="outputs/1200/", pattern="*.tab")
+files
+samples<-gsub("_UMI.*.tab","",files)
+samples
+```
+
+```{r}
+getAmbiguities<-function(file) {
+  dat<-read_tsv(paste0("outputs/1200/", file),
+                col_names = c("gene_id","Unstranded", "First Read","Second Read"))     
+  ambigs<-dat[startsWith(dat$gene_id, "N_"),]
+  ambigs<-ambigs %>% select(gene_id, `First Read`) %>% rename(Count=`First Read`) %>% mutate(Sample=gsub("_UMI.*.tab","",file))
+  return(ambigs)
+}
+```
+
+```{r}
+ambig<-bind_rows(lapply(files,getAmbiguities)) %>% group_by(Sample) %>% mutate(N_Total=sum(Count))
+ambig
+```
+
+```{r}
+readTab<-function(file) {
+  dat<-read_tsv(paste0("outputs/1200/", file),
+                col_names = c("gene_id","Unstranded", "First Read","Second Read"))     
+  dat2<-dat[!startsWith(dat$gene_id, "N_"),]
+  dat3<-dat2 %>% select(gene_id, `First Read`) %>% rename(Count=`First Read`) %>% mutate(Sample=gsub("_UMI.*.tab","",file))
+  return(dat3)
+}
+```
+
+```{r}
+dat<-bind_rows(lapply(files,readTab))
+dat
+```
+
+
+Summarize a bit.
+
+```{r}
+sum<-dat %>% group_by(Sample) %>% mutate(Total=sum(Count)) %>% select(Sample, Total) %>% unique()
+
+ggplot(sum) + geom_histogram(aes(x=Total,fill=Sample)) +
+  scale_fill_viridis_d(option = "turbo") +
+  ylab("Count") +
+  theme_bw()
+```
+
+Comparing to ambiguities.
+
+```{r}
+sum2<-sum %>% mutate(gene_id="Mapped to Feature") %>% mutate(N_Total=Total) %>% bind_rows(rename(ambig, Total=Count))
+sum2
+```
+
+```{r}
+comparisons<-sum2 %>% select(-N_Total) %>% pivot_wider(names_from = Sample, values_from=Total)
+comparisons
+write_csv(comparisons, "outputs/1200/comparison-post-alignment.csv")
+```
+
+Untidy the data and put columns in a sensible order.
+
+```{r}
+tsv<-dat %>% pivot_wider(names_from = Sample, values_from=Count)
+tsv
+
+order<-keepers %>% arrange(Category) %>% select(Sample, Category) %>% mutate(Type="TagSeq")
+order
+write_tsv(order, "outputs/1200/coldata.tsv")
+```
+
+```{r}
+tsv2<-relocate(tsv, gene_id, order$Sample)
+tsv2
+write_tsv(tsv2, file="outputs/1200/pasilla_gene_counts.tsv")
+```
+
+```{r, eval=FALSE}
+if (!require("BiocManager", quietly = TRUE))
+    install.packages("BiocManager")
+
+BiocManager::install("DESeq2")
+```
+
+```{r}
+library(DESeq2)
+```
+
+```{r}
+cts <- as.matrix(read.csv("outputs/1200/pasilla_gene_counts.tsv",sep="\t",row.names="gene_id"))
+head(cts)
+```
+
+```{r}
+coldata <- read.csv("outputs/1200/coldata.tsv",sep="\t", row.names=1)
+coldata
+```
+
+Creating DESeq data set.      
+
+```{r}
+dds <- DESeqDataSetFromMatrix(countData = cts,
+                              colData = coldata,
+                              design = ~ Category)
+dds
+```
+
+filter out low counts.      
+
+```{r}
+keep <- rowSums(counts(dds)) >= 10
+dds <- dds[keep,]
+```
+
+```{r}
+dds <- DESeq(dds)
+res <- results(dds)
+res
+```
+
+```{r}
+resOrdered <- res[order(res$pvalue),]
+```
+
+```{r}
+summary(res)
+```
+
+```{r}
+sum(res$padj < 0.1, na.rm=TRUE)
+```
+
+
+```{r}
+res05 <- results(dds, alpha=0.05)
+summary(res05)
+```
+
+```{r}
+sum(res05$padj < 0.05, na.rm=TRUE)
+```
+
+
+Filtering for padk <0.05 and LFC >= 1
+
+```{r}
+results<-as_tibble(resOrdered)
+results$Gene<-rownames(resOrdered)
+results<-results %>% relocate(Gene) %>% filter(padj<0.05, abs(log2FoldChange) >= 1)
+results
+write_csv(results, "outputs/1200/results.csv")
+```
+
+Check counts for a couple.
+
+```{r}
+tsv2 %>% filter(gene_id %in% c("lum","rrad","irf5"))
+```
+
+
+## Reduce numbers to 1/4 or 1/2 of what there is and see what DE's turn up?
+
+```{r}
+cts4<-round(cts/2,0)
+head(cts4)
+```
+
+
+```{r}
+dds <- DESeqDataSetFromMatrix(countData = cts4,
+                              colData = coldata,
+                              design = ~ Category)
+dds
+
+keep <- rowSums(counts(dds)) >= 10
+dds <- dds[keep,]
+
+dds <- DESeq(dds)
+res <- results(dds)
+res
+```
+
+```{r}
+resOrdered <- res[order(res$pvalue),]
+```
+
+```{r}
+summary(res)
+sum(res$padj < 0.1, na.rm=TRUE)
+```
+
+Reduced number of DE genes from 1501 to 724 with 1/2 the data, 293 with 1/4 the data. 
+
+```{r}
+results<-as_tibble(resOrdered)
+results$Gene<-rownames(resOrdered)
+results<-results %>% relocate(Gene) %>% filter(padj<0.05, abs(log2FoldChange) >= 1)
+results
 ```
