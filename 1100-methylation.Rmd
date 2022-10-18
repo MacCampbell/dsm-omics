@@ -63,7 +63,9 @@ jobid=$(sbatch -p high -J fqcp.${USER} --array=1-6 fastqc_post.slurm |cut -d' ' 
 sbatch -J mqcp.${USER} --dependency=afterok:${jobid} multiqc_post.slurm
 
 ## Alignment
-sbatch -p high -J bm1.${USER} --array=1-133 bismark_part1.slurm # running
+sbatch -p high -J bm1.${USER} --array=1-133 bismark_part1.slurm # did not finish
+sbatch -p high -J bm1.${USER} --array=1-133 bismark_part1-finish.slurm #
+
 
 Examine metrics:      
 ls $HOME/Methylation/03-Bismark/*_PE_report.txt > input2.fofn
@@ -72,6 +74,9 @@ ls $HOME/Methylation/04-Methylation/*.M-bias.txt >> input2.fofn
 ls $HOME/Methylation/04-Methylation/*_splitting_report.txt >> input2.fofn
 sbatch -J mqb.${USER} multiqc_bismark.slurm
 
+Examine coverage with qualimap.
+jobid=$(sbatch -J qms.${USER} --array=1-133 qualimap_single.slurm |cut -d' ' -f4 - )
+sbatch -J qmm.${USER} --dependency=afterok:${jobid} qualimap_multi.slurm
 
 # DMRichR
 

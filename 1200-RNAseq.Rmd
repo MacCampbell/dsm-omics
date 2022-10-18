@@ -355,7 +355,7 @@ keepers <- filter(rin, rin$`Sample Name` %in% tops$`Sample Name`)
 keepers<-keepers %>% mutate(Sample=paste0("AF", `Sample Name`)) %>% relocate(Sample)
 keepers<-keepers %>% left_join(meta)
 keepers$Category<-gsub("_\\w_","",keepers$`hdi category`)
-keepers %>% arrange(Category) %>% select(Sample, Category)
+keepers %>% arrange(Category) %>% dplyr::select(Sample, Category)
 ```
 
 Analyzing with DESeq2       
@@ -395,7 +395,7 @@ dat[startsWith(dat$gene_id, "N_"),]
 
 ```{r}
 dat2<-dat[!startsWith(dat$gene_id, "N_"),]
-dat2 %>% select(gene_id, `First Read`) %>% rename(AF104=`First Read`)
+dat2 %>% dplyr::select(gene_id, `First Read`) %>% dplyr::rename(AF104=`First Read`)
 ```
 
 Now, do it 12 times real fast.     
@@ -412,7 +412,7 @@ getAmbiguities<-function(file) {
   dat<-read_tsv(paste0("outputs/1200/", file),
                 col_names = c("gene_id","Unstranded", "First Read","Second Read"))     
   ambigs<-dat[startsWith(dat$gene_id, "N_"),]
-  ambigs<-ambigs %>% select(gene_id, `First Read`) %>% rename(Count=`First Read`) %>% mutate(Sample=gsub("_UMI.*.tab","",file))
+  ambigs<-ambigs %>% dplyr::select(gene_id, `First Read`) %>% dplyr::rename(Count=`First Read`) %>% mutate(Sample=gsub("_UMI.*.tab","",file))
   return(ambigs)
 }
 ```
@@ -427,7 +427,7 @@ readTab<-function(file) {
   dat<-read_tsv(paste0("outputs/1200/", file),
                 col_names = c("gene_id","Unstranded", "First Read","Second Read"))     
   dat2<-dat[!startsWith(dat$gene_id, "N_"),]
-  dat3<-dat2 %>% select(gene_id, `First Read`) %>% rename(Count=`First Read`) %>% mutate(Sample=gsub("_UMI.*.tab","",file))
+  dat3<-dat2 %>% dplyr::select(gene_id, `First Read`) %>% dplyr::rename(Count=`First Read`) %>% mutate(Sample=gsub("_UMI.*.tab","",file))
   return(dat3)
 }
 ```
@@ -441,7 +441,7 @@ dat
 Summarize a bit.
 
 ```{r}
-sum<-dat %>% group_by(Sample) %>% mutate(Total=sum(Count)) %>% select(Sample, Total) %>% unique()
+sum<-dat %>% group_by(Sample) %>% mutate(Total=sum(Count)) %>% dplyr::select(Sample, Total) %>% unique()
 
 ggplot(sum) + geom_histogram(aes(x=Total,fill=Sample)) +
   scale_fill_viridis_d(option = "turbo") +
@@ -452,12 +452,12 @@ ggplot(sum) + geom_histogram(aes(x=Total,fill=Sample)) +
 Comparing to ambiguities.
 
 ```{r}
-sum2<-sum %>% mutate(gene_id="Mapped to Feature") %>% mutate(N_Total=Total) %>% bind_rows(rename(ambig, Total=Count))
+sum2<-sum %>% mutate(gene_id="Mapped to Feature") %>% mutate(N_Total=Total) %>% bind_rows(dplyr::rename(ambig, Total=Count))
 sum2
 ```
 
 ```{r}
-comparisons<-sum2 %>% select(-N_Total) %>% pivot_wider(names_from = Sample, values_from=Total)
+comparisons<-sum2 %>% dplyr::select(-N_Total) %>% pivot_wider(names_from = Sample, values_from=Total)
 comparisons
 write_csv(comparisons, "outputs/1200/comparison-post-alignment.csv")
 ```
@@ -468,7 +468,7 @@ Untidy the data and put columns in a sensible order.
 tsv<-dat %>% pivot_wider(names_from = Sample, values_from=Count)
 tsv
 
-order<-keepers %>% arrange(Category) %>% select(Sample, Category) %>% mutate(Type="TagSeq")
+order<-keepers %>% arrange(Category) %>% dplyr::select(Sample, Category) %>% mutate(Type="TagSeq")
 order
 write_tsv(order, "outputs/1200/coldata.tsv")
 ```
@@ -600,4 +600,434 @@ results<-as_tibble(resOrdered)
 results$Gene<-rownames(resOrdered)
 results<-results %>% relocate(Gene) %>% filter(padj<0.05, abs(log2FoldChange) >= 1)
 results
+```
+
+
+## UMIs  
+
+Davis faqs 
+https://dnatech.genomecenter.ucdavis.edu/faqs/where-can-i-find-the-umis-in-the-tag-seq-data-when-and-how-should-i-trim-my-tag-seq-data/
+
+https://dnatech.genomecenter.ucdavis.edu/faqs/should-i-remove-pcr-duplicates-from-my-rna-seq-data/
+
+The data show a low-complexity region with fastqc (TATA) after the first six bases (not all seqs have this). Collecting from untrimmed data.
+
+```{sh, eval=FALSE}
+ gunzip -c AF104_UMI_S81_R1_001.fastq.gz | head -n 4000 | perl -ne 'while(m/^(\w{6}TATA)/g){print "$1\n";}' | sort | uniq -c | perl -pe 's/TATA$//g' | awk '{print $2, "\t", $1, "AF104_UMI_S81_R1_001.fastq.gz"}' | perl -pe 's/_R1_001.fastq.gz//g'
+ 
+ 
+ 
+ for f in *.fastq.gz; do  gunzip -c $f | perl -ne 'while(m/^(\w{6}TATA)/g){print "$1\n";}' | sort | uniq -c | perl -pe 's/TATA$//g' | awk '{print $2, "\t", $1, "\t" "'$f'"}' | perl -pe 's/_R1_001.fastq.gz//g' >> umis.tsv; done;
+```
+
+Visualizing UMIs
+
+```{r}
+umis<-read_tsv("outputs/1200/umis.tsv", col_names = c("UMI","Count","File"))
+umis
+```
+
+```{r}
+umis %>% group_by(File) %>% summarize(Number=n())
+```
+
+Ruh-roh.    
+
+Using UMI tools.    
+
+https://github.com/CGATOxford/UMI-tools (conda install -c bioconda -c conda-forge umi_tools)      
+we should have 10 ns, as we have 6 bases then TATA.  
+umi_tools extract --stdin=example.fastq.gz --bc-pattern=NNNNNNNNNN --log=processed.log --stdout processed.fastq.gz 
+
+Probably should use regex mode.    
+--extract-method=regex 
+
+Using python style.     
+--bc-pattern='^(?P<umi_1>.{6})TATA'      
+
+
+Calling as batch:
+`sbatch -p high -J umitools$USER --array=1-12 05-umi-tools.slurm `   
+
+
+This remove the pattern to the read name
+(base) maccamp@farm:~/RNAseq/05-UMI$ gunzip -c AF104_UMI_S81_R1_001.fastq.gz | head -n 8
+
+From:
+(base) maccamp@farm:~/RNAseq/05-UMI$ gunzip -c ../00-RawData/AF104_UMI_S81_R1_001.fastq.gz | head -n 8
+`@NB501427:688:H3J2JBGXM:1:11101:3717:1066 1:N:0:TGCACG
+TACCATGAGATCGGCGGTTCGAAGACGATCAGATACCGTCGTAGTTCCGACCATAAACGATGCCAACTAGCGATCCNGCGGCGNT
++
+AAAAAE/E/EEEEEEEEEEEEEEEAEEEEEEEEEEEEEEEEEEEEEEEEAEEEEEEEEE/EEEE/EEEEEEEEEEA#EEEEEE#E
+@NB501427:688:H3J2JBGXM:1:11101:24785:1078 1:N:0:TGCACG
+TCTAGTGATAAGGCAGTGTGGACCAAAGGCATCAGGAATGTTCCGTACAGAATGCGTGTACGGTTGTCCAGGAAGCGCAATGAGG
++
+AAA66E/AE/EE6/EEEAEEEEEAEAEEEEAEAEE//EEEEEAEEEEEEE//EEEEEE<6EEEEEEAE<<EE/EEE/EE/EEAEA`
+
+`@NB501427:688:H3J2JBGXM:1:11101:3717:1066_TACCATGAGA 1:N:0:TGCACG
+TCGGCGGTTCGAAGACGATCAGATACCGTCGTAGTTCCGACCATAAACGATGCCAACTAGCGATCCNGCGGCGNT
++
+EEEEEEEEEEEEEEAEEEEEEEEEEEEEEEEEEEEEEEEAEEEEEEEEE/EEEE/EEEEEEEEEEA#EEEEEE#E
+@NB501427:688:H3J2JBGXM:1:11101:24785:1078_TCTAGTGATA 1:N:0:TGCACG
+AGGCAGTGTGGACCAAAGGCATCAGGAATGTTCCGTACAGAATGCGTGTACGGTTGTCCAGGAAGCGCAATGAGG
++
+EE6/EEEAEEEEEAEAEEEEAEAEE//EEEEEAEEEEEEE//EEEEEE<6EEEEEEAE<<EE/EEE/EE/EEAEA`     
+
+
+
+Trimming again.
+`sbatch -p high -J bbduk$USER --array=1-12 06-bbduk-post-umi.slurm`
+
+AF51_UMI_S78_R1_001
+AF91_UMI_S79_R1_001
+AF94_UMI_S80_R1_001
+
+
+Aligning again.    
+`sbatch -p high -J star-$USER --array=1-12 07-star-umi.slurm` 
+
+Star should output "--outSAMtype BAM SortedByCoordinate "
+files look like "	AF94_UMI_S80_R1_001-Aligned.sortedByCoord.out.bam" Adding line to index to 07.
+
+Now do dedup.     
+`umi_tools dedup -I example.bam --output-stats=deduplicated -S deduplicated.bam`
+
+`sbatch -p high -J dedup-$USER --array=1-12 08-umi-dedup.slurm` 
+
+How does it look?
+(base) maccamp@farm:~/RNAseq$ samtools flagstat 04-Align/AF104_UMI_S81_R1_001-Aligned.sortedByCoord.out.bam
+14569027 + 0 in total (QC-passed reads + QC-failed reads)
+11461957 + 0 secondary
+0 + 0 supplementary
+0 + 0 duplicates
+14569027 + 0 mapped (100.00% : N/A)
+0 + 0 paired in sequencing
+0 + 0 read1
+0 + 0 read2
+0 + 0 properly paired (N/A : N/A)
+0 + 0 with itself and mate mapped
+0 + 0 singletons (N/A : N/A)
+0 + 0 with mate mapped to a different chr
+0 + 0 with mate mapped to a different chr (mapQ>=5)
+
+(base) maccamp@farm:~/RNAseq$ samtools flagstat 08-UMI-dedup/AF104_UMI_S81_R1_001.dedup.bam 
+2673356 + 0 in total (QC-passed reads + QC-failed reads)
+1339818 + 0 secondary
+0 + 0 supplementary
+0 + 0 duplicates
+2673356 + 0 mapped (100.00% : N/A)
+0 + 0 paired in sequencing
+0 + 0 read1
+0 + 0 read2
+0 + 0 properly paired (N/A : N/A)
+0 + 0 with itself and mate mapped
+0 + 0 singletons (N/A : N/A)
+0 + 0 with mate mapped to a different chr
+0 + 0 with mate mapped to a different chr (mapQ>=5)
+
+#### New counts
+
+Get new matrix with HTSEQ?
+module is HTSeq/0.9.1
+htseq-count [options] <alignment_files> <gff_file>
+htseq-count \ 
+-f bam \
+-r pos \ 
+-s yes \
+-t exon \
+-i gene \
+
+ ~/genomes/GCF021917145.1/GCF_021917145.1_fHypTra1_genomic.gff    
+ sbatch -p high -J dedup-$USER --array=1-12 09-HTSeq.slurm    
+ 
+ 
+ (base) maccamp@farm:~/RNAseq/09-UMI-HTSeq$ for f in *counts.txt; do echo $f; cat $f | grep -v "__" | awk '{sum+=$2} END {print sum}'; done;
+AF104_UMI_S81_R1_001-counts.txt
+858029
+AF106_UMI_S82_R1_001-counts.txt
+1252423
+AF108_UMI_S83_R1_001-counts.txt
+771276
+AF26_UMI_S72_R1_001-counts.txt
+705116
+AF27_UMI_S73_R1_001-counts.txt
+774429
+AF29_UMI_S74_R1_001-counts.txt
+1368744
+AF36_UMI_S75_R1_001-counts.txt
+1096362
+AF39_UMI_S76_R1_001-counts.txt
+1103925
+AF49_UMI_S77_R1_001-counts.txt
+620959
+AF51_UMI_S78_R1_001-counts.txt
+1203528
+AF91_UMI_S79_R1_001-counts.txt
+1422533
+AF94_UMI_S80_R1_001-counts.txt
+548974
+
+ Or, generate new fastqs and rerun STAR?
+ 
+ 
+ Importing files for DESeq2     
+ 
+ 
+ 
+```{r}
+files<-list.files(path="outputs/1200/", pattern="*counts.txt")
+files
+samples<-gsub("_UMI.*counts.txt","",files)
+samples
+```
+
+```{r}
+getAmbiguities<-function(file) {
+  dat<-read_tsv(paste0("outputs/1200/", file),
+                col_names = c("gene_id", "First Read"))
+  ambigs<-dat[startsWith(dat$gene_id, "__"),]
+  ambigs<-ambigs %>% dplyr::select(gene_id, `First Read`) %>% dplyr::rename(Count=`First Read`) %>% mutate(Sample=gsub("_UMI.*counts.txt","",file))
+  return(ambigs)
+}
+```
+
+```{r}
+ambig<-bind_rows(lapply(files,getAmbiguities)) %>% group_by(Sample) %>% mutate(N_Total=sum(Count))
+ambig
+```
+
+```{r}
+readTab<-function(file) {
+  dat<-read_tsv(paste0("outputs/1200/", file),
+                col_names = c("gene_id","First Read"))     
+  dat2<-dat[!startsWith(dat$gene_id, "__"),]
+  dat3<-dat2 %>% dplyr::select(gene_id, `First Read`) %>% dplyr::rename(Count=`First Read`) %>% mutate(Sample=gsub("_UMI.*counts.txt","",file))
+  return(dat3)
+}
+```
+
+```{r}
+dat<-bind_rows(lapply(files,readTab))
+dat
+```
+
+
+### Summary of HTSeq Data
+
+
+Summarize a bit.
+
+```{r}
+sum<-dat %>% group_by(Sample) %>% mutate(Total=sum(Count)) %>% dplyr::select(Sample, Total) %>% unique()
+
+ggplot(sum) + geom_histogram(aes(x=Total,fill=Sample)) +
+  scale_fill_viridis_d(option = "turbo") +
+  ylab("Count") +
+  theme_bw()
+```
+
+Comparing to ambiguities.
+
+```{r}
+sum2<-sum %>% mutate(gene_id="Mapped to Feature") %>% mutate(N_Total=Total) %>% bind_rows(dplyr::rename(ambig, Total=Count))
+sum2
+```
+
+```{r}
+comparisons<-sum2 %>% dplyr::select(-N_Total) %>% pivot_wider(names_from = Sample, values_from=Total)
+comparisons
+write_csv(comparisons, "outputs/1200/comparison-post-alignment-UMI.csv")
+```
+
+
+
+Untidy the data and put columns in a sensible order.
+
+```{r}
+tsv<-dat %>% tidyr::pivot_wider(names_from = Sample, values_from=Count)
+tsv
+
+order<-keepers %>% arrange(Category) %>% dplyr::select(Sample, Category) %>% mutate(Type="TagSeq")
+order
+write_tsv(order, "outputs/1200/coldata-UMI.tsv")
+```
+
+```{r}
+tsv2<-relocate(tsv, gene_id, order$Sample)
+tsv2
+write_tsv(tsv2, file="outputs/1200/pasilla_gene_counts-UMI.tsv")
+```
+
+
+
+```{r}
+cts <- as.matrix(read.csv("outputs/1200/pasilla_gene_counts-UMI.tsv",sep="\t",row.names="gene_id"))
+head(cts)
+```
+
+```{r}
+coldata <- read.csv("outputs/1200/coldata-UMI.tsv",sep="\t", row.names=1)
+coldata
+```
+
+Creating DESeq data set.      
+
+```{r}
+dds <- DESeqDataSetFromMatrix(countData = cts,
+                              colData = coldata,
+                              design = ~ Category)
+dds
+```
+
+filter out low counts.      
+
+```{r}
+keep <- rowSums(counts(dds)) >= 10
+dds <- dds[keep,]
+```
+
+```{r}
+dds <- DESeq(dds)
+res <- results(dds)
+res
+```
+
+```{r}
+resOrdered <- res[order(res$pvalue),]
+```
+
+```{r}
+summary(res)
+```
+
+```{r}
+sum(res$padj < 0.1, na.rm=TRUE)
+```
+
+
+```{r}
+res05 <- results(dds, alpha=0.05)
+summary(res05)
+```
+
+```{r}
+sum(res05$padj < 0.05, na.rm=TRUE)
+```
+
+
+Filtering for padk <0.05 and LFC >= 1
+
+```{r}
+results<-as_tibble(resOrdered)
+results$Gene<-rownames(resOrdered)
+results<-results %>% relocate(Gene) %>% filter(padj<0.05, abs(log2FoldChange) >= 1)
+results
+write_csv(results, "outputs/1200/results-UMI.csv")
+```
+
+
+
+### Getting HTSeq Counts from undedup reads
+ sbatch -p high -J dedup-$USER --array=1-12 10-HTSeq-nodedup.slurm
+ 
+```{r}
+files<-list.files(path="outputs/1200/", pattern="*nodedup.txt")
+files
+samples<-gsub("_UMI.*nodedup.txt","",files)
+samples
+
+getAmbiguities<-function(file) {
+  dat<-read_tsv(paste0("outputs/1200/", file),
+                col_names = c("gene_id", "First Read"))
+  ambigs<-dat[startsWith(dat$gene_id, "__"),]
+  ambigs<-ambigs %>% dplyr::select(gene_id, `First Read`) %>% dplyr::rename(Count=`First Read`) %>% mutate(Sample=gsub("_UMI.*nodedup.txt","",file))
+  return(ambigs)
+}
+
+ambig<-bind_rows(lapply(files,getAmbiguities)) %>% group_by(Sample) %>% mutate(N_Total=sum(Count))
+ambig
+
+readTab<-function(file) {
+  dat<-read_tsv(paste0("outputs/1200/", file),
+                col_names = c("gene_id","First Read"))     
+  dat2<-dat[!startsWith(dat$gene_id, "__"),]
+  dat3<-dat2 %>% dplyr::select(gene_id, `First Read`) %>% dplyr::rename(Count=`First Read`) %>% mutate(Sample=gsub("_UMI.*nodedup.txt","",file))
+  return(dat3)
+}
+
+dat<-bind_rows(lapply(files,readTab))
+dat
+```
+ 
+Summarize a bit.
+
+```{r}
+sum<-dat %>% group_by(Sample) %>% mutate(Total=sum(Count)) %>% dplyr::select(Sample, Total) %>% unique()
+
+ggplot(sum) + geom_histogram(aes(x=Total,fill=Sample)) +
+  scale_fill_viridis_d(option = "turbo") +
+  ylab("Count") +
+  theme_bw()
+```
+
+Comparing to ambiguities.
+
+```{r}
+sum2<-sum %>% mutate(gene_id="Mapped to Feature") %>% mutate(N_Total=Total) %>% bind_rows(dplyr::rename(ambig, Total=Count))
+sum2
+
+comparisons<-sum2 %>% dplyr::select(-N_Total) %>% pivot_wider(names_from = Sample, values_from=Total)
+comparisons
+write_csv(comparisons, "outputs/1200/comparison-post-alignment-nodedup.csv")
+
+tsv<-dat %>% tidyr::pivot_wider(names_from = Sample, values_from=Count)
+tsv
+
+order<-keepers %>% arrange(Category) %>% dplyr::select(Sample, Category) %>% mutate(Type="TagSeq")
+order
+write_tsv(order, "outputs/1200/coldata-htseq.tsv")
+
+tsv2<-relocate(tsv, gene_id, order$Sample)
+tsv2
+write_tsv(tsv2, file="outputs/1200/pasilla_gene_counts-htseq.tsv")
+
+cts <- as.matrix(read.csv("outputs/1200/pasilla_gene_counts-htseq.tsv",sep="\t",row.names="gene_id"))
+head(cts)
+
+coldata <- read.csv("outputs/1200/coldata-htseq.tsv",sep="\t", row.names=1)
+coldata
+
+dds <- DESeqDataSetFromMatrix(countData = cts,
+                              colData = coldata,
+                              design = ~ Category)
+dds
+
+keep <- rowSums(counts(dds)) >= 10
+dds <- dds[keep,]
+
+dds <- DESeq(dds)
+res <- results(dds)
+res
+
+resOrdered <- res[order(res$pvalue),]
+
+summary(res)
+
+sum(res$padj < 0.1, na.rm=TRUE)
+
+res05 <- results(dds, alpha=0.05)
+summary(res05)
+
+sum(res05$padj < 0.05, na.rm=TRUE)
+```
+
+
+Filtering for padk <0.05 and LFC >= 1
+
+```{r}
+results<-as_tibble(resOrdered)
+results$Gene<-rownames(resOrdered)
+results<-results %>% relocate(Gene) %>% filter(padj<0.05, abs(log2FoldChange) >= 1)
+results
+write_csv(results, "outputs/1200/results-htseq.csv")
 ```

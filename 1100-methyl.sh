@@ -11,4 +11,4 @@ jobid=$(sbatch -p med -J fqcp.${USER} --array=1-133 fastqc_post.slurm |cut -d' '
 sbatch -J mqcp.${USER} --dependency=afterok:${jobid} multiqc_post.slurm
 
 ## Align
-sbatch -p med -J bm1.${USER} --array=1-133 bismark_part1.slurm # started 9/19, failed
+sbatch -p med -J bm1.${USER} --array=1-133 bismark_part1.slurm # appears to partially finish, needs to generate final step
