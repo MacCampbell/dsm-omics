@@ -64,7 +64,24 @@ sbatch -J mqcp.${USER} --dependency=afterok:${jobid} multiqc_post.slurm
 
 ## Alignment
 sbatch -p high -J bm1.${USER} --array=1-133 bismark_part1.slurm # did not finish
-sbatch -p high -J bm1.${USER} --array=1-133 bismark_part1-finish.slurm #
+
+      54947695_94       med bm1.macc  maccamp millermr  R       54:47  9-23:05:13     1 2   5G     c9-69
+         54947695_15       med bm1.macc  maccamp millermr  R  5-04:01:44  4-19:58:16     1 2   5G     c9-74
+         54947695_17       med bm1.macc  maccamp millermr  R  5-04:01:44  4-19:58:16     1 2   5G     c9-74
+         
+         
+         
+sbatch -p med -J bm1.${USER} --array=1-3 bismark_part1-finish.slurm 
+tofinish.txt    
+PL1H10    
+PL1B03    
+PL1B05    
+
+## Array of bismark_part2
+
+sbatch -p med -J bm2.${USER} --array=1-133 bismark_part2.slurm 
+
+Looks to have run to completion.
 
 
 Examine metrics:      
@@ -77,6 +94,9 @@ sbatch -J mqb.${USER} multiqc_bismark.slurm
 Examine coverage with qualimap.
 jobid=$(sbatch -J qms.${USER} --array=1-133 qualimap_single.slurm |cut -d' ' -f4 - )
 sbatch -J qmm.${USER} --dependency=afterok:${jobid} qualimap_multi.slurm
+
+# Getting counts in a different form
+sbatch -J cnt.${USER} --array=1-133 gather_rawcounts.slurm
 
 # DMRichR
 

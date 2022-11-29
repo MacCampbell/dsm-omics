@@ -817,6 +817,8 @@ dat
 
 Summarize a bit.
 
+Trendline of RIN vs reads?
+
 ```{r}
 sum<-dat %>% group_by(Sample) %>% mutate(Total=sum(Count)) %>% dplyr::select(Sample, Total) %>% unique()
 
@@ -825,8 +827,55 @@ ggplot(sum) + geom_histogram(aes(x=Total,fill=Sample)) +
   ylab("Count") +
   theme_bw()
 ```
+```{r}
+trend<-sum %>% left_join(keepers) 
 
+trend
+```
+
+```{r}
+model<-lm(trend$Total ~ trend$`RNA Quality Score`)
+summary(model)
+```
+
+```{r}
+library(ggpubr)
+ggplot(trend, aes(x=`RNA Quality Score`, y=Total)) +
+  geom_smooth(method=lm, col="black") +
+  geom_point(pch=21, aes(fill=Sample)) +
+  stat_regline_equation() +
+  stat_cor(aes(label = paste(..rr.label.., ..p.label.., sep = "~`,`~")), label.y=1.3e6) +
+  scale_fill_viridis_d(option = "turbo") +
+  ylab("Count") +
+  theme_bw()
+
+ggsave("outputs/1200/trendline.jpeg")
+```
+```{r}
+round((500000+5698345)/1397043,2)
+```
 Comparing to ambiguities.
+
+```{r}
+t2<-left_join(trend, ambig %>% select(Sample, N_Total) %>% unique()) %>% select(Sample, `RNA Quality Score`, Total, N_Total) %>% mutate(Align=Total+N_Total)
+
+ggplot(t2, aes(x=`RNA Quality Score`, y=Align)) +
+  geom_smooth(method=lm, col="black") +
+  geom_point(pch=21, aes(fill=Sample)) +
+  stat_regline_equation() +
+  stat_cor(aes(label = paste(..rr.label.., ..p.label.., sep = "~`,`~")), label.y=1.9e6) +
+  scale_fill_viridis_d(option = "turbo") +
+  ylab("Count") +
+  theme_bw()
+
+```
+```{r}
+summary(lm(t2$Align ~ t2$`RNA Quality Score`))
+```
+```{r}
+round((500000+8349203)/2065681,2)
+```
+
 
 ```{r}
 sum2<-sum %>% mutate(gene_id="Mapped to Feature") %>% mutate(N_Total=Total) %>% bind_rows(dplyr::rename(ambig, Total=Count))
