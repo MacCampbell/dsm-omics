@@ -1,0 +1,632 @@
+---
+title: "1201-RNAseq-total"
+author: "Mac Campbell"
+date: "2023-03-31"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+```
+
+```{r}
+library(tidyverse)
+library(DESeq2)
+library(pheatmap)
+library(RColorBrewer)
+```
+
+```{r}
+rin <-read_csv("meta/Sorted-RIN.csv") %>% mutate(Sample=paste0("AF", `Sample Name`)) %>% relocate(Sample)
+meta<-read_csv("meta/dsm-rna-meta.csv")  %>% mutate(Sample=paste0("AF",`sonication number`)) %>% relocate(Sample) %>% left_join(rin)
+```
+
+## Now we have the data!  
+
+We've already bulit the STAR indices. So I'm going to cp the existing RNAseq directory like so:
+
+`(base) maccamp@farm:~$ cp -r RNAseq/ ./RNA-seq-bak`
+
+cleaning out scripts/slurmout dir with rm     
+getting raw data     
+
+`(base) maccamp@farm:~/RNAseq/00-RawData$ ln -s /home/maccamp/data/delta-smelt-omics/Project_AFAF_Tag0197P_Finger/*.fastq.gz .`   
+
+etc. Have 146 samples.   It looks like we have duplicates of the original 12
+
+(base) maccamp@farm:~/RNAseq/00-RawData$ ls /home/maccamp/data/delta-smelt-omics/Project_AFAF_Tag0197P_Finger/*fastq.gz | wc -l
+54
+(base) maccamp@farm:~/RNAseq/00-RawData$ ls /home/maccamp/data/delta-smelt-omics/Project_AF/*fastq.gz | wc -l
+Project_AFAF_Tag0197P_Finger/  Project_AFSO_Tag0151P_Orourke/ Project_AFSO_Tag0197P_ORourke/ 
+(base) maccamp@farm:~/RNAseq/00-RawData$ ls /home/maccamp/data/delta-smelt-omics/Project_AFSO_Tag0151P_Orourke/*fastq.gz | wc -l
+12
+(base) maccamp@farm:~/RNAseq/00-RawData$ ls /home/maccamp/data/delta-smelt-omics/Project_AFOrourke/*fastq.gz | wc -l
+Project_AFAF_Tag0197P_Finger/  Project_AFSO_Tag0151P_Orourke/ Project_AFSO_Tag0197P_ORourke/ 
+(base) maccamp@farm:~/RNAseq/00-RawData$ ls /home/maccamp/data/delta-smelt-omics/Project_AFSO_Tag0197P_ORourke/*fastq.gz | wc -l
+81
+
+
+need a scripts/allsamples.txt file     
+
+`(base) maccamp@farm:~/RNAseq/00-RawData$ ls  | perl -pe 's/.fastq.gz//g' > ../scripts/allsamples.txt`
+
+Note to self, do something about snakemake.    
+
+Look at all-samples
+`(base) Macs-MacBook-Pro-2:1201 mac$ cut -f 1 -d '_' allsamples.txt  > allsamples-list.txt`     
+    
+```{r}
+samples<-read_tsv("outputs/1201/allsamples.txt", col_names = "SampleID") 
+list<-read_tsv("outputs/1201/allsamples-list.txt", col_names= "Sample")
+sam<-bind_cols(list,samples)
+tot<-sam %>% left_join(meta)
+```
+
+Duplicate are included and look like this, not unique Sample, unique SampleID     
+
+```{r}
+tot %>% filter(Sample=="AF104") %>% select(Sample, SampleID)
+```
+
+__1__ Basic assessment
+
+Calling like this:     
+Dropping to 5 days of run time bc of generator test
+```{sh eval=FALSE}
+sbatch -p med -J fastqc.$USER --array=1-146 01-fastqc.slurm;
+sbatch -J mqcp.${USER} 01-pre-multiqc.slurm
+```
+
+__2__ Trimming
+`sbatch -p med -J bbduk$USER --array=1-146 02-bbduk.slurm`   
+
+__3__  Post Trimming QC
+
+`sbatch -p med -J fqp-$USER --array=1-146 03-post-trim-fastqc.slurm`   
+
+Dropped dependency, see Methylation for better way to do this.    
+
+`sbatch -J mqcp.${USER} 03-post-trim-multiqc.slurm`
+
+__4__ Align  (not done)  
+`sbatch -p med -J star-$USER --array=1-12 04-star-align.slurm `
+
+Don't forget to index bams!!    
+`(base) maccamp@farm:~/RNAseq/04-Align$ for f in *.bam; do echo $f; samtools index $f; done;`
+
+
+## UMI
+
+`sbatch -p high -J umitools$USER --array=1-146 05-umi-tools.slurm `   
+`sbatch -p high -J bbduk$USER --array=1-146 06-bbduk-post-umi.slurm`
+
+Working on 04/05/2023
+Aligning again.    
+`sbatch -p high -J star-$USER --array=1-146 07-star-umi.slurm` 
+
+Star should output "--outSAMtype BAM SortedByCoordinate "
+files look like "	AF94_UMI_S80_R1_001-Aligned.sortedByCoord.out.bam" Adding line to index to 07.
+
+Now do dedup.     
+`umi_tools dedup -I example.bam --output-stats=deduplicated -S deduplicated.bam`
+
+`sbatch -p high -J dedup-$USER --array=1-146 08-umi-dedup.slurm` 
+
+Counts.    
+`sbatch -p high -J dedup-$USER --array=1-146 09-HTSeq.slurm`  
+
+
+## What do they look like?
+
+```{r}
+files<-list.files(path="outputs/1201/09-UMI-HTSeq/", pattern="*counts.txt")
+files
+samples<-gsub("_S\\d+.*counts.txt","",files)
+samples
+```
+
+```{r}
+getAmbiguities<-function(file) {
+  dat<-read_tsv(paste0("outputs/1201/09-UMI-HTSeq/", file),
+                col_names = c("gene_id", "First Read"))
+  ambigs<-dat[startsWith(dat$gene_id, "__"),]
+  ambigs<-ambigs %>% dplyr::select(gene_id, `First Read`) %>% dplyr::rename(Count=`First Read`) %>% mutate(Sample=gsub("_S\\d+.*counts.txt","",file))
+  return(ambigs)
+}
+```
+
+
+
+```{r}
+ambig<-bind_rows(lapply(files,getAmbiguities)) %>% group_by(Sample) %>% mutate(N_Total=sum(Count))
+ambig
+```
+
+
+```{r}
+readTab<-function(file) {
+  dat<-read_tsv(paste0("outputs/1201/09-UMI-HTSeq/", file),
+                col_names = c("gene_id","First Read"))     
+  dat2<-dat[!startsWith(dat$gene_id, "__"),]
+  dat3<-dat2 %>% dplyr::select(gene_id, `First Read`) %>% dplyr::rename(Count=`First Read`) %>% mutate(Sample=gsub("_S\\d+.*counts.txt","",file))
+  return(dat3)
+}
+```
+
+```{r}
+dat<-bind_rows(lapply(files,readTab))
+dat
+```
+
+### Summarize Read Counts    
+
+
+```{r}
+sum<-dat %>% group_by(Sample) %>% mutate(Total=sum(Count)) %>% dplyr::select(Sample, Total) %>% unique()
+
+ggplot(sum) + geom_histogram(aes(x=Total,fill=Sample)) +
+  scale_fill_viridis_d(option = "turbo") +
+  ylab("Count") +
+  theme_bw() +
+  theme(legend.position = "none")
+```
+
+### DESeq
+
+```{r}
+tsv<-dat %>% tidyr::pivot_wider(names_from = Sample, values_from=Count)
+tsv
+```
+
+```{r}
+order<-tot
+order$SeqID<-gsub("_S\\d+.+","",order$SampleID)
+order<-filter(order, SeqID %in% colnames(tsv))
+order<-order %>% arrange(Type) %>% dplyr::select(SeqID,Type) %>% mutate(Seq="TagSeq")
+
+write_tsv(order, "outputs/1201/coldata-UMI.tsv")
+```
+
+```{r}
+tsv2<-relocate(tsv, gene_id, order$SeqID)
+tsv2
+write_tsv(tsv2, file="outputs/1201/pasilla_gene_counts.tsv")
+```
+
+Creating DESeq data set.      
+```{r}
+cts <- as.matrix(read.csv("outputs/1201/pasilla_gene_counts.tsv",sep="\t",row.names="gene_id"))
+```
+
+```{r}
+coldata <- read.csv("outputs/1201/coldata-UMI.tsv",sep="\t", row.names=1)
+coldata
+```
+```{r}
+dds <- DESeqDataSetFromMatrix(countData = cts,
+                              colData = coldata,
+                              design = ~ Type)
+dds
+```
+
+filter out low counts.      
+
+```{r}
+keep <- rowSums(counts(dds)) >= 10
+dds <- dds[keep,]
+```
+
+Make PCA
+```{r}
+vsd <- vst(dds, blind=FALSE)
+```
+
+```{r}
+pcaData <- plotPCA(vsd, intgroup=c("Type"), returnData=TRUE)
+percentVar <- round(100 * attr(pcaData, "percentVar"))
+
+
+pca<-ggplot(pcaData, aes(PC1, PC2, fill=Type, shape=Type)) +
+  geom_point(size=3) +
+#  geom_text_repel(data=pcaData, aes(x=PC1, y=PC2, fill=Type, label=name)) +
+  xlab(paste0("PC1: ",percentVar[1],"% variance")) +
+  ylab(paste0("PC2: ",percentVar[2],"% variance")) + 
+  coord_fixed() +
+  theme_bw() +
+  theme(panel.grid=element_blank()) +
+  scale_shape_manual(values=c(21,24)) +
+  guides(fill = guide_legend(override.aes = list(pch = 22))) +
+  scale_fill_viridis_d()
+
+pca
+```
+
+```{r}
+dds <- DESeq(dds)
+res <- results(dds)
+res
+```
+
+```{r}
+resOrdered <- res[order(res$pvalue),]
+```
+
+```{r}
+summary(res)
+```
+
+```{r}
+sum(res$padj < 0.1, na.rm=TRUE)
+```
+
+
+```{r}
+res05 <- results(dds, alpha=0.05)
+summary(res05)
+```
+
+```{r}
+sum(res05$padj < 0.05, na.rm=TRUE)
+```
+
+
+Filtering for padk <0.05 and LFC >= 1
+
+```{r}
+results<-as_tibble(resOrdered)
+results$Gene<-rownames(resOrdered)
+results<-results %>% relocate(Gene) %>% filter(padj<0.05, abs(log2FoldChange) >= 1)
+results
+write_csv(results, "outputs/1201/results.csv")
+```
+
+Basic cluster
+
+
+```{r}
+sampleDists <- dist(t(assay(vsd)))
+sampleDistMatrix <- as.matrix(sampleDists)
+rownames(sampleDistMatrix) <- paste(vsd$Type, colnames(vsd), sep="-")
+colnames(sampleDistMatrix) <- NULL
+colors <- colorRampPalette( rev(brewer.pal(9, "Blues")) )(255)
+
+pdf("outputs/1201/cluster.pdf", height=16, width=18)
+pheatmap(sampleDistMatrix,
+         clustering_distance_rows=sampleDists,
+         clustering_distance_cols=sampleDists,
+         col=colors,
+         fontsize_row = 4)
+
+dev.off()
+```
+
+```{r}
+sampleDists <- dist(t(assay(vsd[rownames(vsd) %in% results$Gene])))
+sampleDistMatrix <- as.matrix(sampleDists)
+rownames(sampleDistMatrix) <- paste(vsd$Type, colnames(vsd), sep="-")
+colnames(sampleDistMatrix) <- NULL
+colors <- colorRampPalette( rev(brewer.pal(9, "Blues")) )(255)
+
+pdf("outputs/1201/cluster-de-genes.pdf", height=16, width=18)
+pheatmap(sampleDistMatrix,
+         clustering_distance_rows=sampleDists,
+         clustering_distance_cols=sampleDists,
+         col=colors,
+         fontsize_row = 4)
+
+dev.off()
+```
+
+## Highrollers
+
+```{r}
+highs<-sum %>% filter(Total > 5e5)
+o2<-order %>% filter(SeqID %in% highs$Sample)
+
+write_tsv(o2, "outputs/1201/coldata-highs.tsv")
+tsv3<-tsv2 %>% select(gene_id, o2$SeqID)
+tsv3<-relocate(tsv3, gene_id, o2$Sample)
+
+write_tsv(tsv3, file="outputs/1201/highs.tsv")
+```
+
+```{r}
+cts <- as.matrix(read.csv("outputs/1201/highs.tsv",sep="\t",row.names="gene_id"))
+```
+
+```{r}
+coldata <- read.csv("outputs/1201/coldata-highs.tsv",sep="\t", row.names=1)
+coldata
+```
+
+```{r}
+dds <- DESeqDataSetFromMatrix(countData = cts,
+                              colData = coldata,
+                              design = ~ Type)
+dds
+
+```
+
+```{r}
+keep <- rowSums(counts(dds)) >= 10
+dds <- dds[keep,]
+```
+
+
+
+Make PCA
+```{r}
+vsd <- vst(dds, blind=FALSE)
+```
+
+```{r}
+pcaData <- plotPCA(vsd, intgroup=c("Type"), returnData=TRUE)
+percentVar <- round(100 * attr(pcaData, "percentVar"))
+
+
+pca<-ggplot(pcaData, aes(PC1, PC2, fill=Type, shape=Type)) +
+  geom_point(size=3, alpha=0.9) +
+#  geom_text_repel(data=pcaData, aes(x=PC1, y=PC2, fill=Type, label=name)) +
+  xlab(paste0("PC1: ",percentVar[1],"% variance")) +
+  ylab(paste0("PC2: ",percentVar[2],"% variance")) + 
+  coord_fixed() +
+  theme_bw() +
+  theme(panel.grid=element_blank()) +
+  scale_shape_manual(values=c(21,24)) +
+  guides(fill = guide_legend(override.aes = list(pch = 22))) +
+  scale_fill_viridis_d()
+
+pca
+```
+
+
+```{r}
+dds <- DESeq(dds)
+res <- results(dds)
+res
+```
+
+```{r}
+resOrdered <- res[order(res$pvalue),]
+```
+
+```{r}
+summary(res)
+```
+
+```{r}
+sum(res$padj < 0.1, na.rm=TRUE)
+```
+
+
+```{r}
+res05 <- results(dds, alpha=0.05)
+summary(res05)
+```
+
+```{r}
+sum(res05$padj < 0.05, na.rm=TRUE)
+```
+
+
+Filtering for padk <0.05 and LFC >= 1
+
+```{r}
+results<-as_tibble(resOrdered)
+results$Gene<-rownames(resOrdered)
+results<-results %>% relocate(Gene) %>% filter(padj<0.05, abs(log2FoldChange) >= 1)
+results
+write_csv(results, "outputs/1201/results-high.csv")
+```
+
+```{r}
+sampleDists <- dist(t(assay(vsd[rownames(vsd) %in% results$Gene])))
+sampleDistMatrix <- as.matrix(sampleDists)
+rownames(sampleDistMatrix) <- paste(vsd$Type, colnames(vsd), sep="-")
+colnames(sampleDistMatrix) <- NULL
+colors <- colorRampPalette( rev(brewer.pal(9, "Blues")) )(255)
+
+pdf("outputs/1201/cluster-de-genes-high.pdf", height=16, width=18)
+pheatmap(sampleDistMatrix,
+         clustering_distance_rows=sampleDists,
+         clustering_distance_cols=sampleDists,
+         col=colors,
+         fontsize_row = 8)
+
+dev.off()
+```
+
+
+## Less UMI's
+
+```{r}
+set<-sum %>% filter(Total > 4e5) %>% filter(! Sample %in% c("AF104_UMI","AF106_UMI",
+                                                            "AF108_UMI","AF26_UMI",
+                                            "AF27_UMI","AF29_UMI", "AF36_UMI",
+                                            "AF39_UMI","AF49_UMI","AF51_UMI","AF91_UMI",
+                                            "AF94_UMI"))
+o3<-order %>% filter(SeqID %in% set$Sample)
+
+write_tsv(o3, "outputs/1201/coldata-highs-new.tsv")
+tsv4<-tsv2 %>% select(gene_id, o3$SeqID)
+tsv4<-relocate(tsv4, gene_id, o3$Sample)
+
+write_tsv(tsv4, file="outputs/1201/highs-new.tsv")
+```
+
+```{r}
+set %>% left_join(o3, by=c("Sample"="SeqID")) %>% group_by(Type) %>% 
+  summarize(Count=n(), MeanCount=mean(Total))
+```
+
+```{r}
+cts <- as.matrix(read.csv("outputs/1201/highs-new.tsv",sep="\t",row.names="gene_id"))
+```
+
+```{r}
+coldata <- read.csv("outputs/1201/coldata-highs-new.tsv",sep="\t", row.names=1)
+coldata
+```
+
+```{r}
+dds <- DESeqDataSetFromMatrix(countData = cts,
+                              colData = coldata,
+                              design = ~ Type)
+dds
+
+```
+
+```{r}
+keep <- rowSums(counts(dds)) >= 10
+dds <- dds[keep,]
+```
+
+
+
+Make PCA
+```{r}
+vsd <- vst(dds, blind=FALSE)
+ntd <- normTransform(dds)
+
+```
+
+```{r}
+pcaData <- plotPCA(vsd, intgroup=c("Type"), returnData=TRUE) %>% 
+  left_join(sum, by=c("name"="Sample"))
+percentVar <- round(100 * attr(pcaData, "percentVar"))
+
+
+pca<-ggplot(pcaData, aes(PC1, PC2, fill=Type, shape=Type)) +
+  geom_point(size=3, alpha=0.9) +
+#  geom_text_repel(data=pcaData, aes(x=PC1, y=PC2, fill=Type, label=name)) +
+  xlab(paste0("PC1: ",percentVar[1],"% variance")) +
+  ylab(paste0("PC2: ",percentVar[2],"% variance")) + 
+  coord_fixed() +
+  theme_bw() +
+  theme(panel.grid=element_blank()) +
+  scale_shape_manual(values=c(21,24)) +
+  guides(fill = guide_legend(override.aes = list(pch = 22))) +
+  scale_fill_viridis_d()
+
+pca
+
+ggsave("outputs/1201/new-highs.pdf")
+
+```
+
+
+```{r}
+dds <- DESeq(dds)
+res <- results(dds)
+res
+```
+
+```{r}
+resOrdered <- res[order(res$pvalue),]
+```
+
+```{r}
+summary(res)
+```
+
+```{r}
+sum(res$padj < 0.1, na.rm=TRUE)
+```
+
+
+```{r}
+res05 <- results(dds, alpha=0.05)
+summary(res05)
+```
+
+```{r}
+sum(res05$padj < 0.05, na.rm=TRUE)
+```
+
+
+Filtering for padk <0.05 and LFC >= 1
+
+```{r}
+results<-as_tibble(resOrdered)
+results$Gene<-rownames(resOrdered)
+results10<-results %>% relocate(Gene) %>% filter(padj<0.10)
+results05fc1<-results %>% relocate(Gene) %>% filter(padj<0.05, abs(log2FoldChange) >= 1)
+results05fc1
+write_csv(results, "outputs/1201/results-new.csv")
+```
+
+```{r}
+res01<-results %>% relocate(Gene) %>% filter(padj<0.1)
+
+sampleDists <- dist(t(assay(vsd[rownames(vsd) %in% res01$Gene])))
+sampleDistMatrix <- as.matrix(sampleDists)
+rownames(sampleDistMatrix) <- paste(vsd$Type, colnames(vsd), sep="-")
+colnames(sampleDistMatrix) <- NULL
+colors <- colorRampPalette( rev(brewer.pal(9, "Blues")) )(255)
+
+pdf("outputs/1201/cluster-de-genes-new.pdf", height=16, width=18)
+pheatmap(sampleDistMatrix,
+         clustering_distance_rows=sampleDists,
+         clustering_distance_cols=sampleDists,
+         col=colors,
+         fontsize_row = 8)
+
+dev.off()
+```
+
+
+```{r}
+select <- order(rowMeans(counts(dds,normalized=TRUE)),
+                decreasing=TRUE)[1:20]
+
+
+df <- as.data.frame(colData(dds)[,c("Seq","Type")])
+
+pdf("outputs/1201/heatmap-new.pdf", width=10, height=12)
+
+pheatmap(assay(ntd[rownames(ntd) %in% results10$Gene,]), cluster_rows=FALSE, show_rownames=FALSE,
+         cluster_cols=TRUE, clustering_method = "ward.D2", annotation_col=df, show_colnames = FALSE)
+
+dev.off()
+```
+
+```{r}
+pdf("outputs/1201/heatmap-new-all-genes.pdf", width=10, height=12)
+
+pheatmap(assay(ntd),cluster_rows=FALSE, show_rownames=FALSE,
+         cluster_cols=TRUE, clustering_method = "ward.D2", annotation_col=df, show_colnames = FALSE)
+
+dev.off()
+```
+
+```{r}
+pdf("outputs/1201/heatmap-new-res05fc1.pdf", width=10, height=12)
+
+pheatmap(assay(ntd[rownames(ntd) %in% results05fc1$Gene,]), cluster_rows=FALSE, show_rownames=FALSE,
+         cluster_cols=TRUE, clustering_method = "ward.D2", annotation_col=df, show_colnames = FALSE)
+
+dev.off()
+```
+
+```{r}
+pcaData <- plotPCA(vsd[rownames(vsd) %in% results10$Gene,], intgroup=c("Type"), returnData=TRUE) %>% 
+  left_join(sum, by=c("name"="Sample"))
+percentVar <- round(100 * attr(pcaData, "percentVar"))
+
+
+pca<-ggplot(pcaData, aes(PC1, PC2, fill=Type, shape=Type)) +
+  geom_point(size=3, alpha=0.9) +
+#  geom_text_repel(data=pcaData, aes(x=PC1, y=PC2, fill=Type, label=name)) +
+  xlab(paste0("PC1: ",percentVar[1],"% variance")) +
+  ylab(paste0("PC2: ",percentVar[2],"% variance")) + 
+  coord_fixed() +
+  theme_bw() +
+  theme(panel.grid=element_blank()) +
+  scale_shape_manual(values=c(21,24)) +
+  guides(fill = guide_legend(override.aes = list(pch = 22))) +
+  scale_fill_viridis_d()
+
+pca
+
+ggsave("outputs/1201/pca-de-genes.pdf")
+```

@@ -125,6 +125,6 @@ ggplot(wins) +
   facet_wrap(.~chr, scales="free_x") +
   theme_bw() +
   theme(panel.grid = element_blank())
-ggsave("outputs/701/fst-wins.pdf", width=12, height = 12)
+ggsave("outputs/701/fst-win-50k-10k.pdf", width=12, height = 12)
 ```
 

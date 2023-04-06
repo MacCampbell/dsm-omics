@@ -167,6 +167,8 @@ ggplot(lrts) + geom_point(aes(x=Position, y=log10p, color=log10p), alpha=0.75, c
 ggsave("outputs/300/prelim-sex-gwas-all-chroms.jpeg", width=14, height=14)
 ```
 
+
+NW_025814037.1
 ## Comparing to RAD data    
 
 (base) maccamp@farm:~/delta-smelt$ srun -p bigmemm -t 02:00:00 --nodes=1 $HOME/angsd/angsd -P 6 -bam $HOME/delta-smelt/bamlists/2012.bamlist -ybin outputs/temp/sex-phenos.txt -minMapQ 20 -minQ 20 -minInd 91 -doAsso 1 -GL 1 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 -r lg19 -out outputs/temp/rad-sex

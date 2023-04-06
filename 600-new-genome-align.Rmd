@@ -108,7 +108,7 @@ ggplot(sum) +
   theme(axis.title = element_text(face="bold")) +
   scale_y_continuous(breaks=c(0,5,10,15,20,25))
 
-ggsave("outputs/600/average-coverage.jpeg")
+ggsave("outputs/600/average-coverage.pdf")
 ```
      
 ```{r}
