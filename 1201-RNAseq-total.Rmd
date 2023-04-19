@@ -479,6 +479,8 @@ dds
 ```{r}
 keep <- rowSums(counts(dds)) >= 10
 dds <- dds[keep,]
+
+save(dds, file="outputs/1201/less-umis.rda")
 ```
 
 
@@ -629,4 +631,26 @@ pca<-ggplot(pcaData, aes(PC1, PC2, fill=Type, shape=Type)) +
 pca
 
 ggsave("outputs/1201/pca-de-genes.pdf")
+```
+
+Set up for an exploration of counts
+
+```{r}
+df<-t(assay(vsd)) %>% as_tibble()
+df$Sample<-colnames(vsd)
+df$Condition<-vsd$Type
+df<-relocate(df,Sample, Condition)
+```
+
+```{r}
+ddf<-df %>% pivot_longer(cols=3:20186, names_to = c("Gene"), values_to = c("Count"))
+ddf <- ddf %>% group_by(Sample)
+
+tdf<-ddf %>% filter(Sample %in% c("AF10","AF114","AF120","AF71","AF72","AF73"))
+```
+
+```{r}
+ggplot(tdf) + geom_boxplot(aes(x=Sample, y=Count)) +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle=45, hjust=-1)
 ```
