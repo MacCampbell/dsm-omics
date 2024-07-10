@@ -1,0 +1,70 @@
+---
+title: "1203-rna-seq-pcas"
+output: html_document
+date: "2023-07-28"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+```
+
+```{r}
+library(tidyverse)
+library(DESeq2)
+library(viridis)
+```
+
+
+
+`keep <- rowSums(counts(dds)) >= 10
+dds <- dds[keep,]
+```{r}
+load("outputs/1201/less-umis.rda")
+sum<-read_csv("outputs/1201/sum.csv")
+```
+
+
+```{r}
+rowsums<- rowSums(counts(dds)) %>% as_tibble()
+
+ggplot(rowsums) + geom_histogram(aes(x=value))
+```
+
+
+```{r}
+ggplot(rowsums %>% filter(value<=10000) %>% filter(value >= 100)) + geom_histogram(aes(x=value)) +
+         xlim(0,10000)
+```
+```{r}
+keep <- rowSums(counts(dds)) >= 2500
+dds2 <- dds[keep,]
+
+keep2<-rowSums(counts(dds2)) <= 10000
+dds2 <- dds2[keep2,]
+
+
+vsd <- vst(dds2, blind=FALSE)
+ntd <- normTransform(dds2)
+
+pcaData <- plotPCA(vsd, intgroup=c("Type"), returnData=TRUE) %>% 
+  left_join(sum, by=c("name"="Sample"))
+percentVar <- round(100 * attr(pcaData, "percentVar"))
+
+
+pca<-ggplot(pcaData, aes(PC1, PC2, fill=Type, shape=Type)) +
+  geom_point(size=3, alpha=0.9) +
+#  geom_text_repel(data=pcaData, aes(x=PC1, y=PC2, fill=Type, label=name)) +
+  xlab(paste0("PC1: ",percentVar[1],"% variance")) +
+  ylab(paste0("PC2: ",percentVar[2],"% variance")) + 
+  coord_fixed() +
+  theme_bw() +
+  theme(panel.grid=element_blank()) +
+  scale_shape_manual(values=c(21,24)) +
+  guides(fill = guide_legend(override.aes = list(pch = 22))) +
+  scale_fill_viridis_d()
+
+pca
+
+ggsave("outputs/1203/pca.pdf")
+
+```

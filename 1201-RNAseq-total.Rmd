@@ -163,7 +163,7 @@ dat
 
 ```{r}
 sum<-dat %>% group_by(Sample) %>% mutate(Total=sum(Count)) %>% dplyr::select(Sample, Total) %>% unique()
-
+write_csv(sum, file="outputs/1201/sum.csv")
 ggplot(sum) + geom_histogram(aes(x=Total,fill=Sample)) +
   scale_fill_viridis_d(option = "turbo") +
   ylab("Count") +
@@ -518,9 +518,12 @@ ggsave("outputs/1201/new-highs.pdf")
 
 
 ```{r}
+save(dds, file= "outputs/1201/dds.rda")
 dds <- DESeq(dds)
 res <- results(dds)
 res
+save(res, file= "outputs/1201/res")
+
 ```
 
 ```{r}
@@ -604,14 +607,15 @@ dev.off()
 ```{r}
 pdf("outputs/1201/heatmap-new-res05fc1.pdf", width=10, height=12)
 
-pheatmap(assay(ntd[rownames(ntd) %in% results05fc1$Gene,]), cluster_rows=FALSE, show_rownames=FALSE,
+pheatmap(assay(ntd[rownames(ntd) %in% results05fc1$Gene,]), cluster_rows=TRUE, show_rownames=FALSE,
          cluster_cols=TRUE, clustering_method = "ward.D2", annotation_col=df, show_colnames = FALSE)
 
 dev.off()
 ```
 
+
 ```{r}
-pcaData <- plotPCA(vsd[rownames(vsd) %in% results10$Gene,], intgroup=c("Type"), returnData=TRUE) %>% 
+pcaData <- plotPCA(vsd[rownames(vsd) %in% results05fc1$Gene,], intgroup=c("Type"), returnData=TRUE) %>% 
   left_join(sum, by=c("name"="Sample"))
 percentVar <- round(100 * attr(pcaData, "percentVar"))
 
@@ -650,7 +654,30 @@ tdf<-ddf %>% filter(Sample %in% c("AF10","AF114","AF120","AF71","AF72","AF73"))
 ```
 
 ```{r}
-ggplot(tdf) + geom_boxplot(aes(x=Sample, y=Count)) +
+des<-filter(tdf, Gene %in% results05fc1$Gene)
+des <- des %>% left_join(results05fc1)
+ggplot(des) + geom_boxplot(aes(x=Sample, y=Count)) +
   theme_bw() +
-  theme(axis.text.x = element_text(angle=45, hjust=-1)
+  theme(axis.text.x = element_text(angle=45, hjust=1)) +
+  facet_grid(.~Condition, scales = "free_x")
+
 ```
+```{r}
+d2 <- des %>% mutate(FoldChange=ifelse(log2FoldChange < 0, "Negative","Positive"))
+
+ggplot() +
+  geom_line(data=d2, aes(x=Sample, y=Count, group=Gene, color=FoldChange), alpha=0.5) +
+  facet_grid(FoldChange~., scales="free_x")
+
+```
+
+```{r}
+ggplot(d2) +
+  geom_boxplot(aes(x=Sample, y=Count)) +
+  theme(axis.text.x = element_text(angle=45, hjust=1)) +
+  facet_grid(FoldChange~Condition, scales = "free_x") +
+  theme_bw()
+
+```
+
+   

@@ -112,9 +112,15 @@ write_csv(merge,"outputs/702/diffs.csv")
 
 merge
 ```
-
-
-
+```{r}
+merge %>% select(Chromosome, Position, MajorFrequencyHDI, MajorFrequency, AbsoluteDifference)
+```
+```{r}
+ggplot(merge %>% filter(AbsoluteDifference>0.55)) +
+  geom_point(aes(x=Position, y=AbsoluteDifference)) +
+  facet_wrap(.~Chromosome)
+```
+```
 ### Imputation version?
 java -jar ~/bin/beagle.27Jan18.7e1.jar gl=, don't have GL field. using GT.
 

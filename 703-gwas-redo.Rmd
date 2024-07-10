@@ -181,19 +181,28 @@ data2<-bind_rows(list2) %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
 
 top2<-data2 %>% arrange(-LRT) %>% head(n=20)
 top2
+
 ```
 
+```{r}
+data2 %>% filter(log10p>12)
+```
 
 ```{r}
 diffs<-read_csv("outputs/702/diffs.csv") %>% mutate(Diff=MajorFrequencyHDI-MajorFrequency)
 ```
 ```{r}
-dd<-top2 %>% select(Chromosome, Position, LRT)
+write_csv(data2 %>% filter(log10p  >8), "outputs/705/hdi-ldi-91-GWAS-doasso2-cov.csv")
+
+write_csv(data2 %>% filter(log10p  >8) %>% select(Chromosome, Position, LRT) %>% left_join(diffs), "outputs/705/hdi-ldi-91-GWAS-doasso2-cov-diffs.csv")
+
+dd<-data2 %>% filter(log10p>8) %>% select(Chromosome, Position, LRT)
 dd
 ```
 
 ```{r}
-dd %>% left_join(diffs)
+topfreqs<-dd %>% left_join(diffs)
+write_csv(top)
 ```
 
 ```{r}
@@ -201,7 +210,7 @@ nb.cols2 <- length(unique(data2$Chromosome))
 mycolors2 <- colorRampPalette(brewer.pal(8, "Set1"))(nb.cols2)
 #randomize
 mycolors2<-sample(mycolors2)
-ggplot(data2 %>% filter(Chromosome != "NC_061068.1")) +
+ggplot(data2 %>% filter(Position != 16003387)) +
   geom_point(aes(x=Position, y=log10p, color=Chromosome), alpha=0.75, cex=0.5) +
 #  geom_hline(yintercept= 8, col="black", linetype=1, alpha=0.5) +
  # geom_hline(yintercept = -log10(0.05/nrow(dddf)), col="black", linetype=2, alpha=0.5) +
@@ -218,7 +227,8 @@ ggplot(data2 %>% filter(Chromosome != "NC_061068.1")) +
   theme(plot.title = element_text(hjust=0.5) ) +
   theme(plot.subtitle = element_text(hjust=0.5)) +
   facet_wrap(.~Chromosome, ncol=5, scales="free_x") +
-  theme(axis.ticks.x = element_blank(), axis.text.x = element_blank())
+  theme(axis.ticks.x = element_blank(), axis.text.x = element_blank()) +
+  geom_hline(yintercept=8,linetype=2, alpha=0.75)
 
 ggsave("outputs/705/hdi-ldi-91-GWAS-doasso2-cov.jpeg", width=18, height=12)
 ```

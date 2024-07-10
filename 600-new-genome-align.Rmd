@@ -188,6 +188,26 @@ Downloading cov matrix.
 
 
 
+
+```{r}
+sub12<-pp_meta2 %>% filter( (PCx =="PC-01") & (PCy =="PC-02") )
+
+
+pc12<-ggplot(sub12 %>% filter(Coverage < 30), aes(x = val_x, y = val_y, color = Coverage, shape=DI)) +
+  geom_point(size = 2, alpha=0.75) +
+  scale_fill_discrete(na.value = "white") + 
+  theme_bw()+
+  theme(panel.grid=element_blank())+
+  xlab(paste("PC1", " ", round((100*var[1]),2), "%", sep = ""))+
+  ylab(paste("PC2", " ", round((100*var[2]),2), "%", sep = ""))+
+  ggtitle("PCs 1 & 2")+
+  theme(plot.title = element_text(hjust = 0.5)) +
+  scale_colour_viridis_c() +
+  facet_wrap(.~`library number`)
+
+pc12
+```
+
 ```{r}
 cov<-read_delim("outputs/601/chroms.cov", col_names=FALSE, delim=" ") %>% as.matrix()
 ```
@@ -252,26 +272,6 @@ ggplot(pp_meta2) +
   coord_fixed() +
   facet_grid (PCx ~ PCy)
 
-```
-
-
-```{r}
-sub12<-pp_meta2 %>% filter( (PCx =="PC-01") & (PCy =="PC-02") )
-
-
-pc12<-ggplot(sub12 %>% filter(Coverage < 30), aes(x = val_x, y = val_y, color = Coverage, shape=DI)) +
-  geom_point(size = 2, alpha=0.75) +
-  scale_fill_discrete(na.value = "white") + 
-  theme_bw()+
-  theme(panel.grid=element_blank())+
-  xlab(paste("PC1", " ", round((100*var[1]),2), "%", sep = ""))+
-  ylab(paste("PC2", " ", round((100*var[2]),2), "%", sep = ""))+
-  ggtitle("PCs 1 & 2")+
-  theme(plot.title = element_text(hjust = 0.5)) +
-  scale_colour_viridis_c() +
-  facet_wrap(.~`library number`)
-
-pc12
 ```
 
 ```{r}

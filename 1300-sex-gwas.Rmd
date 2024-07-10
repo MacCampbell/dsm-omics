@@ -1,0 +1,213 @@
+---
+title: "1300-sex-gwas"
+output: html_document
+date: "2023-05-09"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+```
+
+```{r}
+library(tidyverse)
+```
+
+Working in outputs/1300
+We have bamlists/test80.bamlist
+bamlists/test80.pheno
+
+```{sh, eval=FALSE}
+#Generate beagles
+bash $HOME/dsm-omics/203-parallelize-pca.sh $HOME/dsm-omics/bamlists/test80.bamlist $HOME/dsm-omics/meta/1mbseqs.txt
+
+#Generate cov matrix
+#This way is pretty darn slow, I shouldn't do it this way again.
+cat $HOME/dsm-omics/meta/1mbseqs.txt | while read line; do python $HOME/pcangsd/pcangsd.py -beagle $line-pca.beagle.gz -o $line -threads 10 > $line.stdout 2> $line.stderr; done;
+
+#Make PCs, see 1000.1-makePCs.R 
+#Execute in ~/dsm-omics/
+Rscript 1300.1-makePCs.R
+
+#Conduct chrom by chrom gwas, like 703.2, see 1000.1-doAsso2-withCov-perChr.sh. This is using the first three PCs as covariates
+#Execute in ~/dsm-omics/outputs/1000/
+
+bash $HOME/dsm-omics/1000.1-doAsso2-withCov-perChrom.sh $HOME/dsm-omics/bamlists/test91.bamlist  $HOME/dsm-omics/meta/1mbseqs.txt $HOME/dsm-omics/meta/test91.pheno 
+
+
+```
+
+
+Check lg 26
+NC_061085.1   
+
+```{r}
+cov<-read_delim("outputs/1300/NC_061078.1.cov", col_names=FALSE, delim=" ") %>% as.matrix()
+m80<-read_tsv("meta/meta.tsv")
+bamlist<-read_tsv("bamlists/test80.bamlist", col_names = c("Path"))
+phenos<-read_tsv("bamlists/test80.pheno", col_names=c("Pheno"))
+bamlist$File<-gsub("/home/maccamp/dsm-omics/data/SOMM517/|/home/maccamp/dsm-omics/data/SOMM516/|/home/maccamp/dsm-omics/data/SOMM515/", "",bamlist$Path)
+
+m80<-m80 %>% filter(SeqFile %in% bamlist$File)
+m80<-bind_cols(m80, phenos)
+m80$Pheno<-as.factor(m80$Pheno)
+```
+
+
+```{r}
+#' @param samples character vector with the individuals IDs in the order in which
+#' they were passed in the bamlist to angsd.
+#' @param cov covariance matrix
+covar2pcs <- function(samples, cov) {
+  
+  
+  eig <- eigen(cov, symm = TRUE)
+  PC <- as.data.frame(eig$vectors) %>%
+    as_tibble() %>%
+    setNames(sprintf("PC-%02d", 1:ncol(.)))
+  
+  samtib <- tibble(sample = samples)
+  
+  list(
+    PCs = bind_cols(samtib, PC),
+    eigevalues = eig$values
+  )
+}
+
+```
+
+```{r}
+pca <- covar2pcs(m80$`Sample name`, cov)
+
+pca_long <- pca$PCs %>%
+  tidyr::gather(., key = "PC", "val", -sample)
+
+# then expand a grid of the possible comparisons (ordered)
+expg <- expand.grid(sample = pca$PCs$sample,
+                    PCx = sprintf("PC-%02d", 1:6),
+                    PCy = sprintf("PC-%02d", 1:6),
+                    stringsAsFactors = FALSE) %>%
+  tibble::as_tibble()
+
+# then left join the pca results onto that
+pca_pairs <- dplyr::left_join(expg, pca_long, by = c("sample", "PCx" = "PC")) %>%
+  dplyr::rename(val_x = val) %>%
+  dplyr::left_join(pca_long, by = c("sample", "PCy" = "PC")) %>%
+  dplyr::rename(val_y = val)
+
+pp_meta <- pca_pairs %>%   # just keep the first 6 PCs around
+  left_join(., m80, by = c("sample" = "Sample name")) 
+
+npc <- 3
+pp_meta2 <- pp_meta %>%
+  filter( (PCx %in% sprintf("PC-%02d", 1:npc)) & 
+            (PCy %in% sprintf("PC-%02d", 1:npc)) )
+
+eig <- eigen(cov, symm = TRUE)
+var<-eig$values/sum(eig$values)
+cumvar<-cumsum(eig$values)/sum(eig$values)
+
+
+ggplot(pp_meta2) +
+  geom_point(aes(x=val_x, y=val_y, shape=`library number`, color=Pheno)) +
+  coord_fixed() +
+  facet_grid (PCx ~ PCy)
+
+```
+
+
+```{r}
+sub12<-pp_meta2 %>% filter( (PCx =="PC-01") & (PCy =="PC-02") )
+
+
+pc12<-ggplot(sub12 %>% filter(Coverage < 30), aes(x = val_x, y = val_y, color = Coverage, shape=Pheno)) +
+  geom_point(size = 2, alpha=0.75) +
+  scale_fill_discrete(na.value = "white") + 
+  theme_bw()+
+  theme(panel.grid=element_blank())+
+  xlab(paste("PC1", " ", round((100*var[1]),2), "%", sep = ""))+
+  ylab(paste("PC2", " ", round((100*var[2]),2), "%", sep = ""))+
+  ggtitle("PCs 1 & 2")+
+  theme(plot.title = element_text(hjust = 0.5)) +
+  scale_colour_viridis_c() 
+pc12
+```
+
+
+## As function
+
+```{r}
+pcs<-function(chrom) {
+pcseqs<-m80
+cov<-read_delim(paste0("outputs/1300/",chrom,".cov"), col_names=FALSE, delim=" ") %>% as.matrix()
+
+pca <- covar2pcs(pcseqs$`Sample name`, cov)
+
+pca_long <- pca$PCs %>%
+  tidyr::gather(., key = "PC", "val", -sample)
+
+# then expand a grid of the possible comparisons (ordered)
+expg <- expand.grid(sample = pca$PCs$sample,
+                    PCx = sprintf("PC-%02d", 1:6),
+                    PCy = sprintf("PC-%02d", 1:6),
+                    stringsAsFactors = FALSE) %>%
+  tibble::as_tibble()
+
+# then left join the pca results onto that
+pca_pairs <- dplyr::left_join(expg, pca_long, by = c("sample", "PCx" = "PC")) %>%
+  dplyr::rename(val_x = val) %>%
+  dplyr::left_join(pca_long, by = c("sample", "PCy" = "PC")) %>%
+  dplyr::rename(val_y = val)
+
+pp_meta <- pca_pairs %>%   # just keep the first 6 PCs around
+  left_join(., pcseqs, by = c("sample" = "Sample name")) 
+
+npc <- 3
+pp_meta2 <- pp_meta %>%
+  filter( (PCx %in% sprintf("PC-%02d", 1:npc)) & 
+            (PCy %in% sprintf("PC-%02d", 1:npc)) )
+
+eig <- eigen(cov, symm = TRUE)
+var<-eig$values/sum(eig$values)
+cumvar<-cumsum(eig$values)/sum(eig$values)
+
+
+ggplot(pp_meta2) +
+  geom_point(aes(x=val_x, y=val_y, shape=Pheno, color=Coverage)) +
+  coord_fixed() +
+  facet_grid (PCx ~ PCy) +
+  theme_bw()
+
+ggsave(paste0("outputs/1300/figs/",chrom,".jpeg"))
+
+sub12<-pp_meta2 %>% filter( (PCx =="PC-01") & (PCy =="PC-02") )
+
+
+pc12<-ggplot(sub12 %>% filter(Coverage < 30), aes(x = val_x, y = val_y, color = Coverage, shape=Pheno)) +
+  geom_point(size = 2, alpha=0.75) +
+  scale_fill_discrete(na.value = "white") + 
+  theme_bw()+
+  theme(panel.grid=element_blank())+
+  xlab(paste("PC1", " ", round((100*var[1]),2), "%", sep = ""))+
+  ylab(paste("PC2", " ", round((100*var[2]),2), "%", sep = ""))+
+  ggtitle("PCs 1 & 2")+
+  theme(plot.title = element_text(hjust = 0.5)) +
+  scale_colour_viridis_c() 
+
+pc12
+
+ggsave(paste0("outputs/1300/figs/pc12-",chrom,".jpeg"))
+
+}
+```
+
+
+
+Get chrom names:
+```{r}
+chroms<-read_tsv("meta/1mbseqs.txt", col_names = c("Chromosome"))
+out<-lapply(chroms$Chromosome,pcs)
+```
+
+## The gwas
+
+`bash $HOME/dsm-omics/301-do-asso.sh $HOME/dsm-omics/bamlists/test80.bamlist  $HOME/dsm-omics/meta/1mbseqs.txt $HOME/dsm-omics/bamlists/test80.pheno`

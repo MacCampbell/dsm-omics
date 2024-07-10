@@ -1,0 +1,54 @@
+---
+title: "1302-expression-with-family"
+output: html_document
+date: "2023-09-23"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+```
+
+```{r}
+library(tidyverse)
+library(DESeq2)
+library(pheatmap)
+```
+
+```{r}
+load("outputs/1201/less-umis.rda")
+ntd <- normTransform(dds)
+```
+
+```{r}
+meta<-read_csv("meta/dsm-rna-meta.csv")  %>% mutate(Sample=paste0("AF",`sonication number`)) %>% relocate(Sample) %>% left_join(rin)
+meta$`Offspring Tag ID`<-gsub("hdi","HDI",meta$`Sample name`)
+meta$`Offspring Tag ID`<-gsub("ldi|Ldi","LDI",meta$`Offspring Tag ID`)
+meta$`Offspring Tag ID`<-gsub("c","C",meta$`Offspring Tag ID`)
+```
+
+```{r}
+family<-read_csv("parentage/tidy-family-data.csv")
+family$`Offspring Tag ID`<-gsub("_0","_",family$`Offspring Tag ID`)
+family<-family %>% group_by(`Offspring Tag ID`) %>% mutate(Count=n()) %>% filter(Count<2)
+```
+```{r}
+samples<-rownames(colData(dds))
+m2<-meta %>% filter(Sample %in% samples) %>% left_join(family)
+
+m3<-rownames(df) %>% as_tibble() %>% left_join(m2,c("value"="Sample")) %>% select(value, Type, Family)
+```
+
+```{r}
+df <- as.data.frame(colData(dds)[,c("Seq","Type")])
+
+df<-df %>% bind_cols(m3 %>% select(Family))
+```
+
+```{r}
+pdf("outputs/1302/heatmap-tagseq.pdf", width=10, height=12)
+
+pheatmap(assay(ntd),cluster_rows=FALSE, show_rownames=FALSE,
+         cluster_cols=TRUE, clustering_method = "ward.D2", annotation_col=df, show_colnames = FALSE)
+
+dev.off()
+```

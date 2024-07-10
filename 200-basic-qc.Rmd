@@ -246,6 +246,42 @@ pc12
 
 ```
 
+```{r}
+year<-read_csv("meta/metadata-DS-WGBS-omics-use-this-one copy.csv")
+
+#get rid of leading zeros
+
+year$`Sample ID`
+```
+
+Using our summary object
+
+```{r}
+tomerge<-sum %>% mutate(`Sample ID`=paste0(CrossType,"_",Tank,"_",Number)) %>% left_join(year)
+```
+
+```{r}
+dff<-sub12 %>% left_join(tomerge)
+dff$Year<-as.factor(dff$Year)
+```
+
+```{r}
+ggplot(dff, aes(x = val_x, y = val_y, color = Year, shape=DI)) +
+  geom_point(size = 2, alpha=0.75) +
+#  geom_text_repel(aes(label=Letter), max.overlaps = Inf, alpha=0.75) +
+  scale_fill_discrete(na.value = "white") + 
+  theme_bw()+
+  theme(panel.grid=element_blank())+
+  xlab(paste("PC1", " ", round((100*var[1]),2), "%", sep = ""))+
+  ylab(paste("PC2", " ", round((100*var[2]),2), "%", sep = ""))+
+  ggtitle("PCs 1 & 2")+
+  theme(plot.title = element_text(hjust = 0.5)) +
+  scale_colour_viridis_d()
+```
+
+No 2020 samples?  
+###
+
 What should we expect??     
 "During the spring of 2020 we will work with the FCCL to make 56 crosses, to be analyzed in 2020. We will create crosses for two sets of tanks: (1) mixed DI levels and (2) separate DI levels (low or high). The first set will consist of three tanks each with 8 crosses each with parents of varying DI levels (for a total of 24 single pair crosses, or 48 parents across all three tanks). The second set of tanks will consist of four tanks, two of these tanks will have 8 crosses each with low DI levels, while the other two tanks will have 8 crosses each with high DI levels. This design will enable us to examine if there is a tank effect on how varying DI levels perform. After Delta Smelt in these 7 tanks have been raised to subadult or adulthood under traditional FCCL conditions (including equalizing family size, thinning to about 250 individuals per tank, etc.; Lindberg et al. 2013), we will sacrifice the fish for analysis. We expect to take roughly 100 adult fish per tank. "    
 

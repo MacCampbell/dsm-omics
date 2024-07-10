@@ -1,0 +1,338 @@
+---
+title: "1202-sanity-check"
+output: html_document
+date: "2023-04-25"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message = FALSE)
+```
+
+
+```{r}
+library(tidyverse)
+library(DESeq2)
+library(apeglm)
+```
+
+## Test Data
+
+```{r}
+cts <- as.matrix(read.csv("outputs/1200/pasilla_gene_counts.tsv",sep="\t",row.names="gene_id"))
+
+coldata <- read.csv("outputs/1200/coldata.tsv",sep="\t", row.names=1)
+
+dds <- DESeqDataSetFromMatrix(countData = cts,
+                              colData = coldata,
+                              design = ~ Category)
+dds
+```
+
+```{r}
+keep <- rowSums(counts(dds)) >= 10
+dds <- dds[keep,]
+```
+
+```{r}
+dds <- DESeq(dds)
+res <- results(dds)
+res
+```
+
+```{r}
+resOrdered <- res[order(res$pvalue),]
+results<-as_tibble(resOrdered)
+results$Gene<-rownames(resOrdered)
+results<-results %>% relocate(Gene) %>% filter(padj<0.05, abs(log2FoldChange) >= 1)
+results
+```
+
+```{r}
+vsd <- vst(dds, blind=FALSE)
+ntd <- normTransform(dds)
+```
+
+```{r}
+pcaData <- plotPCA(vsd, intgroup=c("Category"), returnData=TRUE) %>% 
+  left_join(sum, by=c("name"="Sample"))
+percentVar <- round(100 * attr(pcaData, "percentVar"))
+
+
+pca<-ggplot(pcaData, aes(PC1, PC2, fill=Category, shape=Category)) +
+  geom_point(size=3, alpha=0.9) +
+#  geom_text_repel(data=pcaData, aes(x=PC1, y=PC2, fill=Type, label=name)) +
+  xlab(paste0("PC1: ",percentVar[1],"% variance")) +
+  ylab(paste0("PC2: ",percentVar[2],"% variance")) + 
+  coord_fixed() +
+  theme_bw() +
+  theme(panel.grid=element_blank()) +
+  scale_shape_manual(values=c(21,24)) +
+  guides(fill = guide_legend(override.aes = list(pch = 22))) +
+  scale_fill_viridis_d()
+
+pca
+```
+
+Yeah, again, biggest variance not according to hdi/ldi category
+
+```{r}
+df<-t(assay(vsd)) %>% as_tibble()
+df$Sample<-colnames(vsd)
+df$Condition<-vsd$Category
+df<-relocate(df,Sample, Condition)
+```
+
+```{r}
+ddf<-df %>% pivot_longer(cols=3:18558, names_to = c("Gene"), values_to = c("Count"))
+ddf
+```
+
+
+
+```{r}
+ggplot(ddf) +
+  geom_boxplot(aes(x=Sample, y=Count)) +
+  theme(axis.text.x = element_text(angle=45, hjust=1)) +
+  facet_grid(.~Condition, scales = "free_x") +
+  theme_bw()
+
+```
+
+```{r}
+des<-filter(ddf, Gene %in% results$Gene)
+sub<-results %>% arrange(-abs(log2FoldChange)) %>% head(n=20)
+des<-filter(ddf, Gene %in% sub$Gene)
+des <- des %>% left_join(results)
+
+d2 <- des %>% mutate(FoldChange=ifelse(log2FoldChange < 0, "Negative","Positive"))
+d2$Sample<-factor(d2$Sample, levels = unique(ddf$Sample))
+ggplot() +
+  geom_line(data=d2, aes(x=Sample, y=Count, group=Gene, color=FoldChange), alpha=0.5) +
+  facet_grid(FoldChange ~ ., scales="free_x") +
+  theme(axis.text.x = element_text(angle=45, vjust=0.5)) +
+  theme_bw() +
+  theme(panel.grid = element_blank()) +
+  scale_colour_viridis_d(option="turbo")
+
+```
+
+For all the data.
+
+
+
+```{r}
+load("outputs/1201/dds.rda")
+load("outputs/1201/res")
+```
+
+
+```{r}
+cts <- as.matrix(read.csv("outputs/1201/highs.tsv",sep="\t",row.names="gene_id"))
+```
+
+```{r}
+coldata <- read.csv("outputs/1201/coldata-highs.tsv",sep="\t", row.names=1)
+coldata
+```
+
+```{r}
+dds <- DESeqDataSetFromMatrix(countData = cts,
+                              colData = coldata,
+                              design = ~ Type)
+dds
+
+```
+
+```{r}
+#keep <- rowSums(counts(dds)) >= 10
+X<-30
+keep<-rowSums(counts(dds) >= 10) >= X
+
+dds <- dds[keep,]
+```
+
+
+Make PCA
+```{r}
+vsd <- vst(dds, blind=FALSE)
+```
+
+```{r}
+pcaData <- plotPCA(vsd, intgroup=c("Type"), returnData=TRUE)
+percentVar <- round(100 * attr(pcaData, "percentVar"))
+
+
+pca<-ggplot(pcaData, aes(PC1, PC2, fill=Type, shape=Type)) +
+  geom_point(size=3, alpha=0.9) +
+#  geom_text_repel(data=pcaData, aes(x=PC1, y=PC2, fill=Type, label=name)) +
+  xlab(paste0("PC1: ",percentVar[1],"% variance")) +
+  ylab(paste0("PC2: ",percentVar[2],"% variance")) + 
+  coord_fixed() +
+  theme_bw() +
+  theme(panel.grid=element_blank()) +
+  scale_shape_manual(values=c(21,24)) +
+  guides(fill = guide_legend(override.aes = list(pch = 22))) +
+  scale_fill_viridis_d()
+
+pca
+```
+
+
+```{r}
+dds <- DESeq(dds)
+res <- results(dds)
+res
+```
+
+```{r}
+resOrdered <- res[order(res$pvalue),]
+```
+
+```{r}
+summary(res)
+```
+
+```{r}
+resOrdered <- res[order(res$pvalue),]
+results<-as_tibble(resOrdered)
+results$Gene<-rownames(resOrdered)
+results<-results %>% relocate(Gene) %>% filter(padj<0.05, abs(log2FoldChange) >= 1)
+results
+```
+
+```{r}
+vsd <- vst(dds, blind=FALSE)
+ntd <- normTransform(dds)
+```
+
+```{r}
+pcaData <- plotPCA(vsd, intgroup=c("Type"), returnData=TRUE) %>% 
+  left_join(sum, by=c("name"="Sample"))
+percentVar <- round(100 * attr(pcaData, "percentVar"))
+
+
+pca<-ggplot(pcaData, aes(PC1, PC2, fill=Type, shape=Type)) +
+  geom_point(size=3, alpha=0.9) +
+#  geom_text_repel(data=pcaData, aes(x=PC1, y=PC2, fill=Type, label=name)) +
+  xlab(paste0("PC1: ",percentVar[1],"% variance")) +
+  ylab(paste0("PC2: ",percentVar[2],"% variance")) + 
+  coord_fixed() +
+  theme_bw() +
+  theme(panel.grid=element_blank()) +
+  scale_shape_manual(values=c(21,24)) +
+  guides(fill = guide_legend(override.aes = list(pch = 22))) +
+  scale_fill_viridis_d()
+
+pca
+```
+
+
+```{r}
+df<-t(assay(vsd)) %>% as_tibble()
+df$Sample<-colnames(vsd)
+df$Condition<-vsd$Type
+df<-relocate(df,Sample, Condition)
+```
+
+```{r}
+ddf<-df %>% pivot_longer(cols=3:11521, names_to = c("Gene"), values_to = c("Count"))
+ddf
+```
+
+
+
+```{r}
+ggplot(ddf) +
+  geom_boxplot(aes(x=Sample, y=Count), cex=0.5) +
+  theme(axis.text.x = element_text(angle=45, hjust=1)) +
+  facet_grid(.~Condition, scales = "free_x") +
+  theme_bw() +
+  theme(axis.text.x = element_text(angle=45, vjust=1, hjust=1, size=5))
+ggsave("outputs/1202/expression.jpeg", width=11, height=8.5/2)
+```
+
+```{r}
+des<-filter(ddf, Gene %in% results$Gene)
+sub<-results %>% arrange(-abs(log2FoldChange)) %>% head(n=10)
+des<-filter(ddf, Gene %in% sub$Gene)
+des <- des %>% left_join(results)
+
+d2 <- des %>% mutate(FoldChange=ifelse(log2FoldChange < 0, "Negative","Positive"))
+d2$Sample<-factor(d2$Sample, levels = unique(ddf$Sample))
+ggplot() +
+  geom_line(data=d2, aes(x=Sample, y=Count, group=Gene, color=FoldChange), alpha=0.5) +
+  facet_grid(FoldChange ~ ., scales="free_x") +
+  theme(axis.text.x = element_text(angle=45, vjust=0.5)) +
+  theme_bw() +
+  theme(panel.grid = element_blank()) +
+  scale_colour_viridis_d(option="turbo")
+
+```
+
+not a lot of coherent signal across samples. Seems that something else is driving gene expression.
+
+
+```{r}
+depca<-vsd[rownames(vsd) %in% results$Gene,]
+
+pcaData <- plotPCA(depca, intgroup=c("Type"), returnData=TRUE) %>% 
+  left_join(sum, by=c("name"="Sample"))
+percentVar <- round(100 * attr(pcaData, "percentVar"))
+
+
+pca<-ggplot(pcaData, aes(PC1, PC2, fill=Type, shape=Type)) +
+  geom_point(size=3, alpha=0.9) +
+#  geom_text_repel(data=pcaData, aes(x=PC1, y=PC2, fill=Type, label=name)) +
+  xlab(paste0("PC1: ",percentVar[1],"% variance")) +
+  ylab(paste0("PC2: ",percentVar[2],"% variance")) + 
+  coord_fixed() +
+  theme_bw() +
+  theme(panel.grid=element_blank()) +
+  scale_shape_manual(values=c(21,24)) +
+  guides(fill = guide_legend(override.aes = list(pch = 22))) +
+  scale_fill_viridis_d()
+
+pca
+```
+
+
+Should I log transform data deseq2?
+
+Looking at a significant gene
+```{r}
+
+d <- plotCounts(dds, gene="nppb", intgroup="Type", 
+                returnData=TRUE)
+
+ggplot(d, aes(x=Type, y=count)) + 
+  geom_point(position=position_jitter(w=0.1,h=0)) + 
+  scale_y_log10(breaks=c(0,10,20,50,100))
+
+```
+
+It looks like the average expression is different, but lots of overlap, there also tend to be three groups of fish here.  
+
+```{r}
+write_csv(results, file="outputs/1202/results05lfc1.csv")
+```
+
+```{r}
+plotMA(res, ylim=c(-2,2))
+```
+
+```{r}
+resLFC <- lfcShrink(dds, coef="Type_LDI_vs_HDI", type="apeglm")
+```
+
+
+```{r}
+plotMA(resLFC, ylim=c(-2,2))
+```
+
+```{r}
+plot(res$baseMean+1, -log10(res$pvalue),
+     log="x", xlab="mean of normalized counts",
+     ylab=expression(-log[10](pvalue)),
+     ylim=c(0,15),
+     cex=.4, col=rgb(0,0,0,.3))
+```
