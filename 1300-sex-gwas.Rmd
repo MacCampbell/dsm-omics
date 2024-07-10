@@ -208,6 +208,36 @@ chroms<-read_tsv("meta/1mbseqs.txt", col_names = c("Chromosome"))
 out<-lapply(chroms$Chromosome,pcs)
 ```
 
-## The gwas
+## The gwas in outputs/1300
 
-`bash $HOME/dsm-omics/301-do-asso.sh $HOME/dsm-omics/bamlists/test80.bamlist  $HOME/dsm-omics/meta/1mbseqs.txt $HOME/dsm-omics/bamlists/test80.pheno`
+`bash $HOME/dsm-omics/1300-do-asso.sh $HOME/dsm-omics/bamlists/test80.bamlist  $HOME/dsm-omics/meta/1mbseqs.txt $HOME/dsm-omics/bamlists/test80.pheno`
+
+Read them all in    
+```{r}
+list<-list.files(path = "outputs/1300", pattern="lrt0.gz", full.names = TRUE)
+lrts<-lapply(list, read_tsv) %>% bind_rows() %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
+  filter(log10p > 1)
+```
+
+
+```{r}
+ggplot(lrts) + geom_point(aes(x=Position, y=log10p, color=log10p), alpha=0.75, cex=0.7)+
+  geom_hline(yintercept = 6, lty=2, alpha=0.6) +
+  scale_color_gradient(low="grey",high="skyblue") +
+  theme_bw()+
+  theme(axis.text.x= element_text(angle=45,hjust=1)) +
+  theme(panel.grid = element_blank()) +
+  ylab("-log10(p)") +
+  ggtitle("Sex GWAS") +
+  facet_wrap(.~Chromosome, scales = "free_x") +
+  theme(plot.title = element_text(hjust=0.5))
+
+ggsave("outputs/1300/prelim-sex-gwas-all-chroms.jpeg", width=14, height=14)
+```
+
+# Male align
+
+We need to align our data to the male assembly for comparision:
+~/genomes/hypomesus-male-genbank
+
+ maccamp@farm:~/dsm-omics/data/male-align$ cat ../../bamlists/test80.bamlist | perl -pe 's/_R1.sort.flt.bam//g'| while read line; do ln -s $line*fastq.gz . ; done;
