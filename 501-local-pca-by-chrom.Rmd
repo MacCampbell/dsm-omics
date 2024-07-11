@@ -251,13 +251,14 @@ cat lgs.txt  | while read line; do bcftools view -Ov -r $line vcf-renamed.vcf.gz
 
 ```{r}
 ld09<-read.delim("outputs/500/lg09.ldf.ld",sep="",stringsAsFactors=FALSE) %>% as_tibble() %>% arrange(R2) %>% 
-  filter(R2 >0.5)
+  filter(R2 >0.7)
 #~4.5 million obs if at r2 > 0.3
 #~2.5 million obs if at r2 > 0.4
 ggplot(ld09) +
   geom_point(aes(x=BP_A, y=BP_B, color=R2), alpha=0.5) +
   scale_color_gradient(low="khaki1", high="red") + 
   theme_bw()
+ggsave("outputs/500/lg09-ld.jpeg")
 ```
 
 

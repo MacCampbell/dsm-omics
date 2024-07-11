@@ -203,7 +203,7 @@ ggsave(paste0("outputs/1300/figs/pc12-",chrom,".jpeg"))
 
 
 Get chrom names:
-```{r}
+```{r, eval=FALSE}
 chroms<-read_tsv("meta/1mbseqs.txt", col_names = c("Chromosome"))
 out<-lapply(chroms$Chromosome,pcs)
 ```
@@ -235,9 +235,72 @@ ggplot(lrts) + geom_point(aes(x=Position, y=log10p, color=log10p), alpha=0.75, c
 ggsave("outputs/1300/prelim-sex-gwas-all-chroms.jpeg", width=14, height=14)
 ```
 
+NC_061068.1-asso.lrt0.gz       
+
+```{r}
+lrt<-read_tsv("outputs/1300/NC_061078.1-asso.lrt0.gz") %>% bind_rows() %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%  filter(log10p > 1)
+
+lrt %>% arrange(-log10p)
+```
+
+NC_061078.1	15197806	A	G	0.329659	30.328595
+
+
+```{r}
+ggplot(lrt) + geom_point(aes(x=Position, y=log10p, color=log10p), alpha=0.75, cex=0.7)+
+  geom_hline(yintercept = 6, lty=2, alpha=0.6) +
+  scale_color_gradient(low="grey",high="skyblue") +
+  theme_bw()+
+  theme(axis.text.x= element_text(angle=45,hjust=1)) +
+  theme(panel.grid = element_blank()) +
+  ylab("-log10(p)") +
+  ggtitle("Sex GWAS") +
+  facet_wrap(.~Chromosome, scales = "free_x") +
+  theme(plot.title = element_text(hjust=0.5))
+```
+
+SNP calls?
+
+```{sh, eval=FALSE}
+srun -t 72:00:00 -p high --mem=32G --nodes=1 --ntasks-per-node=1 --cpus-per-task=12 $HOME/angsd/angsd -nthreads 24 \
+-minInd 72 -bam bamlists/test80.bamlist \
+-ref /home/maccamp/genomes/GCF021917145.1/GCF_021917145.1_fHypTra1_genomic.fna \
+-r NC_061078.1:10000000- -out outputs/1300/snps-wgs-NC_061078.1 \
+-minMaf 0.05 -minMapQ 20 -minQ 20 -GL 1 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+-doGeno 2 -doPost 1 -postCutoff 0.9 -doPlink 2  > outputs/1300/snps-wgs-NC_061078.1.out 2> outputs/1300/snps-wgs-NC_061078.1.err &
+
+```
+
+Split into male/females and split 
+
+Generally, for each tag ID there is a cross number and unique ID is a six-digit number in which the first two digits is a generation number, the three in the middle is a cross number, and the last number is for male/ female (1 or 2). 
+So let's split into males/females and see what the maximal SNP differences are -> at most 0.5
+
+```{r}
+m80 %>% select(`Sample name`) %>% write_tsv("meta/m80-sample-names.txt")
+females<-m80 %>% filter(Pheno==1)
+females %>% select(`Sample name`) %>% write_tsv("meta/females.txt")
+males<-m80 %>% filter(Pheno==0)
+males %>% select(`Sample name`) %>% write_tsv("meta/males.txt")
+```
+
+12598 variants
+```{sh, eval=FALSE}
+plink --tped snps-wgs-NC_061078.1.tped --tfam snps-wgs-NC_061078.1.tfam  --out plink-binary --recode --allow-extra-chr --noweb
+plink --ped plink-binary.ped --map plink-binary.map --recode vcf --allow-extra-chr -out plink
+bgzip plink.vcf 
+tabix plink.vcf.gz
+
+module load bcftools
+#renaming vcf
+bcftools reheader --samples bamlists/m80-sample-names.txt -o outputs/1300/renamed.vcf.gz outputs/1300/plink.vcf.gz
+```
+
 # Male align
 
 We need to align our data to the male assembly for comparision:
 ~/genomes/hypomesus-male-genbank
 
  maccamp@farm:~/dsm-omics/data/male-align$ cat ../../bamlists/test80.bamlist | perl -pe 's/_R1.sort.flt.bam//g'| while read line; do ln -s $line*fastq.gz . ; done;
+
+bash ../../doAlign-zipped.sh to-align-2.txt  /home/maccamp/genomes/hypomesus-male-genbank/GCA_021870715.1_mHypTra1_genomic.fna
