@@ -348,6 +348,8 @@ Running a silly gwas.
 ```{r}
 mAlign<-m80 %>% mutate(Path=paste0("data/male-align/",`Sample name`,".sort.flt.bam")) 
 mAlign %>% select(Path) %>% write_tsv("bamlists/test80-male.bamlist", col_names=FALSE)
+mAlign %>% select(Pheno) %>% write_tsv("bamlists/test80-male.pheno", col_names=FALSE)
+
 ```
 
 in outputs/1300/male
