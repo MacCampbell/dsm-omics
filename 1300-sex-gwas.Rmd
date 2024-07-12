@@ -10,6 +10,7 @@ knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
 
 ```{r}
 library(tidyverse)
+library(snpR)
 ```
 
 Working in outputs/1300
@@ -50,6 +51,11 @@ bamlist$File<-gsub("/home/maccamp/dsm-omics/data/SOMM517/|/home/maccamp/dsm-omic
 m80<-m80 %>% filter(SeqFile %in% bamlist$File)
 m80<-bind_cols(m80, phenos)
 m80$Pheno<-as.factor(m80$Pheno)
+```
+
+```{r}
+m80r<-m80 %>% left_join(bamlist, by=c("SeqFile"="File")) %>% arrange(Pheno) 
+m80r %>% select(Path) %>% write_tsv("bamlists/m80-ordered.bamlist", col_names = FALSE)
 ```
 
 
@@ -269,6 +275,14 @@ srun -t 72:00:00 -p high --mem=32G --nodes=1 --ntasks-per-node=1 --cpus-per-task
 -minMaf 0.05 -minMapQ 20 -minQ 20 -GL 1 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
 -doGeno 2 -doPost 1 -postCutoff 0.9 -doPlink 2  > outputs/1300/snps-wgs-NC_061078.1.out 2> outputs/1300/snps-wgs-NC_061078.1.err &
 
+
+srun -t 72:00:00 -p high --mem=32G --nodes=1 --ntasks-per-node=1 --cpus-per-task=12 $HOME/angsd/angsd -nthreads 24 \
+-minInd 60 -bam bamlists/m80-ordered.bamlist \
+-ref /home/maccamp/genomes/GCF021917145.1/GCF_021917145.1_fHypTra1_genomic.fna \
+-r NC_061078.1:15121030-15213438 -out outputs/1300/snps-wgs \
+-minMaf 0.1 -minMapQ 20 -minQ 20 -GL 1 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+-doGeno 2 -doPost 1 -postCutoff 0.9 -doPlink 2  > outputs/1300/snps-wgs.out 2> outputs/1300/snps-wgs.err &
+
 ```
 
 Split into male/females and split 
@@ -277,11 +291,12 @@ Generally, for each tag ID there is a cross number and unique ID is a six-digit 
 So let's split into males/females and see what the maximal SNP differences are -> at most 0.5
 
 ```{r}
-m80 %>% select(`Sample name`) %>% write_tsv("meta/m80-sample-names.txt")
+m80 %>% select(`Sample name`) %>% write_tsv("meta/m80-sample-names.txt", col_names=FALSE)
+m80 %>% arrange(Pheno) %>% select(`Sample name`) %>% write_tsv("meta/m80-sample-names-sorted.txt", col_names=FALSE)
 females<-m80 %>% filter(Pheno==1)
-females %>% select(`Sample name`) %>% write_tsv("meta/females.txt")
+females %>% select(`Sample name`) %>% write_tsv("meta/females.txt", col_names = FALSE)
 males<-m80 %>% filter(Pheno==0)
-males %>% select(`Sample name`) %>% write_tsv("meta/males.txt")
+males %>% select(`Sample name`) %>% write_tsv("meta/males.txt", col_names = FALSE)
 ```
 
 12598 variants
@@ -293,8 +308,29 @@ tabix plink.vcf.gz
 
 module load bcftools
 #renaming vcf
-bcftools reheader --samples bamlists/m80-sample-names.txt -o outputs/1300/renamed.vcf.gz outputs/1300/plink.vcf.gz
+bcftools reheader --samples meta/m80-sample-names.txt -o outputs/1300/renamed.vcf.gz outputs/1300/plink.vcf.gz
+bcftools view -S meta/m80-sample-names-sorted.txt outputs/1300/renamed.vcf.gz > outputs/1300/reordered.vcf
+
+bcftools view -S meta/females.txt outputs/1300/renamed.vcf.gz > outputs/1300/females.vcf
+bcftools view -S meta/males.txt outputs/1300/renamed.vcf.gz > outputs/1300/males.vcf
+
 ```
+
+
+```{r}
+snps<-read_vcf("outputs/1300/renamed.vcf.gz", sample.meta = m80 %>% select(`Sample name`, Pheno) %>% rename(Sample=`Sample name`))
+```
+```{r}
+x <- calc_association(snps, response = "Pheno", method = "armitage")
+```
+
+```{r}
+stats <- as.data.frame(get.snpR.stats(x = x, stats = "association")) 
+stats%>% arrange(single.p_armitage_Pheno)
+```
+NC_061078.1	15121039	T	G	0.187580	23.661750 we saw before. So the calls aren't getting the highest associated snps.
+
+
 
 # Male align
 
@@ -304,3 +340,15 @@ We need to align our data to the male assembly for comparision:
  maccamp@farm:~/dsm-omics/data/male-align$ cat ../../bamlists/test80.bamlist | perl -pe 's/_R1.sort.flt.bam//g'| while read line; do ln -s $line*fastq.gz . ; done;
 
 bash ../../doAlign-zipped.sh to-align-2.txt  /home/maccamp/genomes/hypomesus-male-genbank/GCA_021870715.1_mHypTra1_genomic.fna
+
+Hey, it worked! Path to data is `data/male-align/`    
+
+Running a silly gwas.
+
+```{r}
+mAlign<-m80 %>% mutate(Path=paste0("data/male-align/",`Sample name`,".sort.flt.bam")) 
+mAlign %>% select(Path) %>% write_tsv("bamlists/test80-male.bamlist", col_names=FALSE)
+```
+
+in outputs/1300/male
+`bash $HOME/dsm-omics/1300-do-asso.sh $HOME/dsm-omics/bamlists/test80-male.bamlist  $HOME/dsm-omics/meta/1mbseqs.txt $HOME/dsm-omics/bamlists/test80.pheno`
