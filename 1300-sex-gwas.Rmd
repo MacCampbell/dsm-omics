@@ -345,12 +345,14 @@ Hey, it worked! Path to data is `data/male-align/`
 
 Running a silly gwas.
 
+Need our list of chroms
+cat GCA_021870715.1_mHypTra1_genomic.fna.fai | awk '{if ($2 > 1000000) print $1}' > github/dsm-omics/meta/male-1mb-seqs.txt
 ```{r}
-mAlign<-m80 %>% mutate(Path=paste0("data/male-align/",`Sample name`,".sort.flt.bam")) 
+mAlign<-m80 %>% mutate(Path=paste0("/home/maccamp/dsm-omics/data/male-align/",`Sample name`,".sort.flt.bam")) 
 mAlign %>% select(Path) %>% write_tsv("bamlists/test80-male.bamlist", col_names=FALSE)
 mAlign %>% select(Pheno) %>% write_tsv("bamlists/test80-male.pheno", col_names=FALSE)
 
 ```
 
 in outputs/1300/male
-`bash $HOME/dsm-omics/1300-do-asso.sh $HOME/dsm-omics/bamlists/test80-male.bamlist  $HOME/dsm-omics/meta/1mbseqs.txt $HOME/dsm-omics/bamlists/test80.pheno`
+`bash $HOME/dsm-omics/1300-do-asso.sh $HOME/dsm-omics/bamlists/test80-male.bamlist  $HOME/dsm-omics/meta/male-1mb-seqs.txt $HOME/dsm-omics/bamlists/test80-male.pheno`
